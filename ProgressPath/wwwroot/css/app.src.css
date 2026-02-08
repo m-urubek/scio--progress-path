@@ -151,6 +151,7 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  padding-bottom: 0.1em;
 }
 
 .gradient-text-pink {
@@ -158,6 +159,7 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  padding-bottom: 0.1em;
 }
 
 /* Glow button (REQ-THEME-010) */
@@ -253,6 +255,14 @@ select:focus {
   outline: none;
   border-color: rgba(34, 211, 216, 0.6);
   box-shadow: 0 0 10px rgba(34, 211, 216, 0.2);
+}
+
+/* Remove focus outline from all interactive elements */
+button:focus,
+[role="button"]:focus,
+a:focus,
+*:focus {
+  outline: none;
 }
 
 /* Link styles */
