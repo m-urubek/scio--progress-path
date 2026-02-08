@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ReconnectionOverlay.razor",
+      "description": "The component monitors Blazor's built-in reconnection UI via MutationObserver and periodic polling rather than using Blazor's official reconnection handler APIs, which may be less reliable in edge cases."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/reconnection.js",
+      "description": "The reconnection.js file polls for Blazor's reconnection modal every 500ms indefinitely, which could have minor performance implications. Consider cleaning up the interval when no longer needed."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "description": "The ReconnectionOverlay component is placed before Routes, but the script is loaded at the end of body. This works correctly with OnAfterRenderAsync initialization, but the order is worth noting."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:09.12"
+}

@@ -1,0 +1,50 @@
+{
+  "steps": [
+    {
+      "description": "Modify the app service in docker-compose.yml to add a volume mount for hot-reload development. Add the volume mount './ProgressPath:/src:cached' under the volumes section of the app service. This mounts the source directory into the container at /src (matching the WORKDIR in the SDK stage) for live code updates.",
+      "file": "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+      "action": "modify"
+    },
+    {
+      "description": "Add a 'command' override to the app service in docker-compose.yml that runs 'dotnet watch run --project /src/ProgressPath.csproj' instead of the production entrypoint. This enables hot-reload during development. The command should use the SDK image instead of the runtime image.",
+      "file": "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+      "action": "modify"
+    },
+    {
+      "description": "Change the app service 'build' configuration in docker-compose.yml to use a different approach for development: Add a 'target: build' to stop at the SDK stage (build stage) instead of continuing to runtime, since hot-reload requires the SDK. The build context should be '.' (root) and the dockerfile path should be 'ProgressPath/Dockerfile'.",
+      "file": "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+      "action": "modify"
+    },
+    {
+      "description": "Update the Dockerfile to add a named development stage that uses the SDK image and is configured for hot-reload. Add a new stage called 'development' after the build stage that: 1) Uses 'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS development', 2) Sets WORKDIR to /src, 3) Installs Node.js for Tailwind CSS watching, 4) Exposes port 5000, 5) Sets ASPNETCORE_URLS to http://+:5000, 6) Sets ASPNETCORE_ENVIRONMENT to Development. The docker-compose will target this stage.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Dockerfile",
+      "action": "modify"
+    },
+    {
+      "description": "Update docker-compose.yml to target the 'development' stage in the Dockerfile. Change the build section to include 'target: development'. Update the port mapping to '5000:5000' since the development stage uses port 5000. Update the command to 'dotnet watch run --no-hot-reload' (using file watching instead of hot-reload which can have issues in Docker) or keep 'dotnet watch run' for full hot-reload support.",
+      "file": "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+      "action": "modify"
+    },
+    {
+      "description": "Update the .env.example file to add alternative variable name comments clarifying the naming convention. Add comments next to each variable explaining that the double-underscore format (e.g., LLM__Provider) maps to the .NET configuration hierarchy (LLM:Provider). Optionally add the exact variable names from the specification as aliases (e.g., 'LLM_PROVIDER=openai' as an alternative) with a note that both formats work.",
+      "file": "/Users/mu/Coding/scio--progress-path/.env.example",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The hot-reload setup requires using the SDK image (not runtime) because dotnet watch needs the SDK tools to rebuild on file changes",
+    "Volume mounting the source code means the Dockerfile's COPY steps are effectively bypassed during development - the mounted volume takes precedence",
+    "For hot-reload in Docker, dotnet watch run is the correct approach but may require enabling polling for file changes (DOTNET_USE_POLLING_FILE_WATCHER=1) on some systems",
+    "The development stage in Dockerfile should not include the npm install/build steps since those are done via the volume mount where node_modules already exists on the host",
+    "Port 5000 should be used consistently for development (the production Dockerfile uses port 80, but development convention is 5000)",
+    "The .NET double-underscore convention (LLM__Provider) is required for environment variable configuration binding in ASP.NET Core - this maps to LLM:Provider in the configuration hierarchy",
+    "Consider adding DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true to allow watch to handle changes that require full restart",
+    "The Tailwind CSS build for hot-reload may need npm run watch:css running in parallel or the css needs to be pre-built - consider adding this to the development workflow documentation"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Dockerfile",
+    "/Users/mu/Coding/scio--progress-path/.env.example",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj"
+  ]
+}

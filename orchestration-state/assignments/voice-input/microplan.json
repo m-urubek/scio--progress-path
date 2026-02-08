@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "description": "Create speech.js file that provides Web Speech API integration for voice dictation. The file should:\n\n1. Add a feature detection function `isSupported()` that checks for browser support using `'webkitSpeechRecognition' in window || 'SpeechRecognition' in window`\n\n2. Create a SpeechRecognition instance variable (null initially) and an isRecording state flag\n\n3. Implement `initialize()` function that:\n   - Gets the SpeechRecognition constructor (window.SpeechRecognition || window.webkitSpeechRecognition)\n   - Creates a new instance with settings: continuous = false, interimResults = true, lang = 'en-US'\n   - Sets up event handlers: onresult, onerror, onend\n\n4. Implement `startRecording(dotNetReference)` function that:\n   - Stores the Blazor .NET reference for callbacks\n   - Calls recognition.start()\n   - Sets isRecording = true\n\n5. Implement `stopRecording()` function that:\n   - Calls recognition.stop()\n   - Sets isRecording = false\n\n6. Implement `onresult` handler that:\n   - Extracts the transcript from event.results\n   - Calls dotNetReference.invokeMethodAsync('OnSpeechResult', transcript) to send text back to Blazor\n\n7. Implement `onerror` handler that:\n   - Logs the error\n   - Calls dotNetReference.invokeMethodAsync('OnSpeechError', error.error) for error handling\n\n8. Implement `onend` handler that:\n   - Sets isRecording = false\n   - Calls dotNetReference.invokeMethodAsync('OnSpeechEnded') to notify Blazor\n\n9. Export all functions to window.speechInterop object following the pattern used in device.js and chat.js",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/speech.js",
+      "action": "create"
+    },
+    {
+      "description": "Add script reference for speech.js in the App.razor file. Add a new script tag after the chat.js script reference:\n\n<script src=\"js/speech.js\"></script>\n\nPlace it after line 28 (after chat.js) to maintain logical ordering of JS interop files.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create VoiceDictation.razor component in the Student components folder. The component should:\n\n1. Add @inject IJSRuntime JSRuntime and @implements IAsyncDisposable directives\n\n2. Define parameters:\n   - [Parameter] public EventCallback<string> OnTranscription { get; set; } - callback when text is transcribed\n   - [Parameter] public bool IsDisabled { get; set; } - to disable when chat is disabled\n\n3. Add private state variables:\n   - bool isSupported = false (detected after first render)\n   - bool isRecording = false\n   - DotNetObjectReference<VoiceDictation>? dotNetRef\n\n4. In OnAfterRenderAsync (firstRender only):\n   - Call JS to check if speech API is supported via JSRuntime.InvokeAsync<bool>(\"speechInterop.isSupported\")\n   - Set isSupported and call StateHasChanged()\n   - If supported, call JSRuntime.InvokeVoidAsync(\"speechInterop.initialize\")\n   - Create dotNetRef = DotNetObjectReference.Create(this)\n\n5. Create the UI markup:\n   - If !isSupported, render nothing (return early or empty fragment) to hide button per REQ-CHAT-015\n   - Render a button with microphone icon\n   - Apply conditional CSS class for recording state (e.g., 'voice-button-recording' when isRecording)\n   - Button should be disabled when IsDisabled is true\n   - On click, call ToggleRecording()\n\n6. Implement ToggleRecording() method:\n   - If isRecording, call JSRuntime.InvokeVoidAsync(\"speechInterop.stopRecording\")\n   - Else call JSRuntime.InvokeVoidAsync(\"speechInterop.startRecording\", dotNetRef)\n   - Toggle isRecording state\n\n7. Add [JSInvokable] callback methods:\n   - OnSpeechResult(string transcript): Call OnTranscription.InvokeAsync(transcript)\n   - OnSpeechError(string error): Log error, set isRecording = false\n   - OnSpeechEnded(): Set isRecording = false, StateHasChanged()\n\n8. Implement DisposeAsync:\n   - If isRecording, call stopRecording\n   - Dispose dotNetRef\n   - Wrap in try-catch for JSDisconnectedException like in ParticleBackground.razor",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/VoiceDictation.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add CSS styles for the voice dictation button in app.css. Add the following after the existing button styles (around line 200):\n\n1. Add a new @keyframes recording-pulse animation:\n   - 0%, 100%: scale(1), box-shadow with primary color glow\n   - 50%: scale(1.05), stronger box-shadow with primary color\n\n2. Add .voice-button class:\n   - Similar to glow-button but smaller (padding: 0.75rem)\n   - background: rgba(192, 132, 252, 0.2)\n   - border: 1px solid rgba(192, 132, 252, 0.4)\n   - border-radius: 1rem\n   - color: var(--color-secondary)\n   - transition: all 0.3s ease\n\n3. Add .voice-button:hover styles:\n   - background: rgba(192, 132, 252, 0.3)\n   - box-shadow with purple glow\n\n4. Add .voice-button-recording class:\n   - background: rgba(255, 107, 157, 0.3)\n   - border-color: var(--color-primary)\n   - color: var(--color-primary)\n   - animation: recording-pulse 1.5s ease-in-out infinite\n\n5. Add .voice-button:disabled styles:\n   - opacity: 0.5\n   - cursor: not-allowed\n   - animation: none",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Modify ChatInput.razor to integrate the VoiceDictation component. Changes needed:\n\n1. Add a new private field to hold transcribed text for appending:\n   - No new field needed, we'll append directly to the existing 'message' field\n\n2. Add a method to handle voice transcription:\n   - private void HandleTranscription(string transcript)\n   - Append transcript to message (message += (string.IsNullOrEmpty(message) ? \"\" : \" \") + transcript)\n   - Call StateHasChanged() to update the input field\n\n3. Modify the button container in the markup (the flex div around line 18):\n   - Add the VoiceDictation component before the send button\n   - Pass OnTranscription=\"HandleTranscription\"\n   - Pass IsDisabled=\"@(IsDisabled || IsLoading)\"\n\nThe resulting layout should be:\n- Input field (flex-1)\n- VoiceDictation button (microphone)\n- Send button\n\nThe VoiceDictation component will self-hide if the browser doesn't support Web Speech API, so no conditional rendering is needed in ChatInput.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatInput.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Web Speech API availability varies by browser - Chrome and Edge have good support, Firefox and Safari may have limited or no support. The component must gracefully hide the button when unsupported (REQ-CHAT-015).",
+    "The SpeechRecognition API is accessed via window.SpeechRecognition (standard) or window.webkitSpeechRecognition (Chrome/Edge), so both must be checked.",
+    "DotNetObjectReference must be properly disposed to prevent memory leaks in Blazor.",
+    "JS interop exceptions (JSDisconnectedException, ObjectDisposedException) must be caught during disposal since the circuit may disconnect before cleanup completes.",
+    "The recording state must be tracked both in JS and Blazor to ensure UI consistency, especially when the recognition ends unexpectedly (e.g., silence timeout).",
+    "The transcribed text should append to existing input text rather than replace it, allowing users to combine voice and typed input.",
+    "The recording animation should use the theme's primary color (pink) to maintain visual consistency while clearly indicating the active recording state.",
+    "interimResults should be set to true to show real-time transcription as the user speaks, providing better feedback.",
+    "The voice button must respect the IsDisabled and IsLoading states from the parent ChatInput component to maintain consistent behavior when chat is disabled or sending.",
+    "Error handling in the speech.js should cover common errors like 'not-allowed' (permission denied), 'no-speech', and 'network' errors."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatInput.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/chat.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ParticleBackground.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css"
+  ]
+}

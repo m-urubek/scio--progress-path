@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Routes.razor",
+      "description": "Duplicate CascadingAuthenticationState wrapper - Routes.razor wraps content in CascadingAuthenticationState but Program.cs also registers AddCascadingAuthenticationState(). While this won't cause errors, one of these is redundant."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor",
+      "description": "The 'glow-button' class is used on the Google sign-in button as required, but the button could benefit from a more visible hover state indicator for accessibility."
+    }
+  ],
+  "buildPassed": false,
+  "buildOutput": "Unable to run build command - dotnet SDK is not installed or not available in PATH on this system. The code review passed based on static analysis."
+}

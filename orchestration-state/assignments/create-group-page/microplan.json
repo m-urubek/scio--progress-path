@@ -1,0 +1,75 @@
+{
+  "steps": [
+    {
+      "description": "Create the CreateGroup.razor page with route '/groups/create'. Include @page directive, @attribute [Authorize], inject IGroupService, IAuthenticationService, IQRCodeService, AuthenticationStateProvider, NavigationManager, and IConfiguration. Define the component state: groupName (string), goalDescription (string with max 500 chars), isLoading (bool), errorMessage (string?), createdGroup (Group?), and currentStep enum (Input, Confirmation, QRCode). Add a form with Group Name input (required, themed input class), Goal Description textarea (required, max 500 chars with character counter), and Submit button (glow-button class, disabled during loading). Use glow-container for the form wrapper. Show loading state with 'Interpreting your goal...' message when submitting. Handle form submission: validate inputs, call GroupService.CreateGroupAsync(), on success set currentStep to Confirmation and store the created group; on LLMServiceException show error with retry option.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add the confirmation step UI to CreateGroup.razor: When currentStep is Confirmation, render the GoalConfirmation component passing the createdGroup and interpretation data. The component receives the interpreted GoalType, Steps list, WelcomeMessage, and callbacks for OnAccept and OnReject. OnAccept: call GroupService.ConfirmGoalInterpretationAsync(), then set currentStep to QRCode. OnReject: call GroupService.RejectGoalInterpretationAsync() with the updated goalDescription (passed from GoalConfirmation), update createdGroup with returned group, stay on Confirmation step to show new interpretation.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add the QR code display step to CreateGroup.razor: When currentStep is QRCode, render the QRCodeDisplay component passing the join URL (constructed from IConfiguration 'ApplicationBaseUrl' + '/join/' + createdGroup.JoinCode) and the joinCode. Include a 'Go to Dashboard' button that navigates to '/groups'.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create the GoalConfirmation.razor component in Components/Teacher folder. Define parameters: GoalType (GoalType enum), Steps (List<string>), WelcomeMessage (string), GroupName (string), GoalDescription (string), OnAccept (EventCallback), OnReject (EventCallback<string>). Include internal state: editedGoalDescription (string, initialized from GoalDescription), isEditing (bool for showing edit mode), isLoading (bool for button states). Display in a glow-container: group name as header, interpreted goal type (show 'Binary Goal' with checkmark icon or 'Percentage Goal' with progress icon), for percentage goals show numbered list of step descriptions, sample welcome message in an inner-card with distinct styling, Accept button (glow-button) and Reject button (styled with pink border, not filled). Use gradient-text for section headers.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GoalConfirmation.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add the reject/edit functionality to GoalConfirmation.razor: When user clicks Reject, set isEditing to true and show a textarea pre-filled with editedGoalDescription (copy of original GoalDescription). Add a 'Resubmit' button that calls OnReject.InvokeAsync(editedGoalDescription). Add a 'Cancel' button to exit edit mode without changes. Show loading state on Resubmit button while processing. Keep Accept button visible but secondary during edit mode.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GoalConfirmation.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create the QRCodeDisplay.razor component in Components/Shared folder. Define parameters: JoinUrl (string), JoinCode (string). Inject IJSRuntime for clipboard functionality. Display in a glow-container: heading 'Group Created Successfully!' with gradient-text, the QR code image (use IQRCodeService to generate base64 data URI - inject and call in OnInitialized, store as qrCodeDataUri), the join URL displayed as text (styled with tertiary color), a 'Copy Link' button that calls JS interop to copy JoinUrl to clipboard. Show a brief 'Copied!' feedback message (use a copySuccess bool state that auto-resets after 2 seconds using Timer or Task.Delay with StateHasChanged).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/QRCodeDisplay.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add clipboard JS interop to QRCodeDisplay.razor: Create a private async method CopyToClipboard() that calls JSRuntime.InvokeVoidAsync('navigator.clipboard.writeText', JoinUrl), sets copySuccess to true, calls StateHasChanged, then uses Task.Delay(2000) followed by setting copySuccess to false and another StateHasChanged. Handle JS exceptions gracefully by showing a fallback message if clipboard API fails.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/QRCodeDisplay.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add error handling and retry UI to CreateGroup.razor: When LLMServiceException is caught during group creation, set errorMessage with user-friendly text ('Failed to interpret your goal. Please try again.'). Display error in a styled div with pink border. Add a 'Retry' button next to the error that clears the error and allows resubmission. Similarly handle errors during confirmation/rejection - show inline error with retry option. Reset isLoading to false in finally block of all async operations.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add additional CSS styles to app.src.css for the new components: Add .goal-step-list class for styling the numbered steps list (left border with gradient, padding, spacing). Add .welcome-message-preview class for the sample welcome message box (italic, distinct background). Add .copy-success class for the clipboard success feedback (animated fade). Add .reject-button class for the reject button styling (outline style with pink color, hover effects). Add .character-counter class for the textarea character count display (small text, changes color when near limit).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The IGroupService.CreateGroupAsync already handles AI interpretation internally and returns a Group with GoalInterpretation JSON stored - use GetGoalInterpretationAsync to retrieve the parsed GoalInterpretation DTO",
+    "The QRCodeService is registered as singleton and returns base64 data URI directly - no need for additional encoding",
+    "GoalDescription max length is 500 characters per REQ-GROUP-004 - enforce in UI with maxlength attribute and show remaining character count",
+    "IConfiguration needs 'ApplicationBaseUrl' setting for constructing join URLs - use builder.Configuration pattern matching Program.cs",
+    "LLMServiceException is already defined in ILLMService.cs - catch this specific exception for AI-related errors per REQ-GROUP-011",
+    "Groups cannot be joined until IsConfirmed is true (REQ-GROUP-010) - the ConfirmGoalInterpretationAsync method handles this",
+    "The rejection flow uses RejectGoalInterpretationAsync which takes the updated goal description and re-runs AI interpretation - the group is updated in place",
+    "Use existing CSS classes: glow-container, inner-card, glow-button, gradient-text, gradient-text-pink from app.src.css",
+    "Follow the pattern from GroupsList.razor for authentication state handling and user retrieval",
+    "The GoalInterpretation DTO has GoalType, Steps (List<string>), WelcomeMessage, and TotalSteps (computed from Steps.Count)",
+    "For clipboard API, use navigator.clipboard.writeText which is widely supported - handle gracefully if it fails in older browsers"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupsList.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/GoalInterpretation.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IQRCodeService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/QRCodeService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ILLMService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs"
+  ]
+}

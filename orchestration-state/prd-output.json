@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "sections": [
+    "Overview",
+    "Requirements",
+    "Acceptance Criteria",
+    "Constraints",
+    "Out of Scope",
+    "Appendix"
+  ]
+}

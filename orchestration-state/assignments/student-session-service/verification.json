@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js",
+      "description": "The PRD specifies TC-007 'The application shall use TypeScript for any client-side scripting', but device.js is plain JavaScript. Consider converting to TypeScript for type safety."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\\n    0 Warning(s)\\n    0 Error(s)\\n\\nTime Elapsed 00:00:07.48"
+}

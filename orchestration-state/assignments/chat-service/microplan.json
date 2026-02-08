@@ -1,0 +1,65 @@
+{
+  "steps": [
+    {
+      "description": "Create IChatService.cs interface file with the following methods:\n- Task<ChatMessage> SendMessageAsync(int sessionId, string content): Send a student message and get AI response\n- Task<IEnumerable<ChatMessage>> GetChatHistoryAsync(int sessionId): Get all messages for a session ordered by Timestamp\n- Task<IEnumerable<ChatMessage>> GetProgressMessagesAsync(int sessionId): Get only messages where ContributesToProgress = true\n\nInclude XML documentation referencing REQ-CHAT-001 through REQ-CHAT-009 and REQ-AI-021 through REQ-AI-028. Follow the same namespace pattern as other services (ProgressPath.Services). Include using statements for ProgressPath.Models.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create ChatService.cs implementation with the following structure:\n\n1. Class declaration inheriting IChatService with dependencies:\n   - ProgressPathDbContext _dbContext (for data access)\n   - ILLMService _llmService (for AI processing)\n   - IStudentSessionService _sessionService (for progress updates)\n   - ILogger<ChatService> _logger\n\n2. Implement GetChatHistoryAsync:\n   - Query ChatMessages table filtered by StudentSessionId\n   - Order by Timestamp ascending\n   - Return as IEnumerable<ChatMessage>\n\n3. Implement GetProgressMessagesAsync:\n   - Query ChatMessages table filtered by StudentSessionId AND ContributesToProgress = true\n   - Order by Timestamp ascending\n   - Return as IEnumerable<ChatMessage>\n\n4. Implement SendMessageAsync (main orchestration method):\n   a. Validate sessionId and content (throw ArgumentException if empty)\n   b. Load StudentSession with Include(s => s.Group) and Include(s => s.ChatMessages)\n   c. Throw KeyNotFoundException if session not found\n   d. Check if session.IsCompleted - if true, throw InvalidOperationException per REQ-GOAL-014\n   e. Create and save student ChatMessage (IsFromStudent=true, ContributesToProgress=false, IsOffTopic=false, Timestamp=DateTime.UtcNow)\n   f. Update LastActivityAt via _sessionService.UpdateLastActivityAsync per REQ-AI-024\n   g. Build ChatContext using ChatContext.FromStudentSession(), passing step descriptions from deserialized GoalInterpretation\n   h. Call _llmService.ProcessStudentMessageAsync with context and content\n   i. Handle response (create AI message, update progress, handle off-topic flags)\n   j. Return the AI response ChatMessage",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Add helper method to ChatService for building ChatContext:\n\nCreate private method GetStepDescriptionsFromGroup(Group group) -> List<string>:\n- If group.GoalInterpretation is null or empty, return empty list\n- Deserialize GoalInterpretation JSON to GoalInterpretation DTO using same JsonSerializerOptions as GroupService (PropertyNameCaseInsensitive = true, AllowTrailingCommas = true)\n- Return interpretation.Steps or empty list if null\n- Wrap in try-catch, log warning on JsonException, return empty list on failure",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Add ProcessAIResponse helper method to ChatService:\n\nCreate private async method ProcessAIResponseAsync(StudentSession session, ChatResponse response) -> ChatMessage:\n\n1. Create AI ChatMessage entity:\n   - StudentSessionId = session.Id\n   - Content = response.Message\n   - IsFromStudent = false\n   - ContributesToProgress = false (AI messages don't contribute directly)\n   - IsOffTopic = false\n   - Timestamp = DateTime.UtcNow\n\n2. If response.IsError:\n   - Save AI message to database\n   - Log warning about API error\n   - Return AI message (no progress update per REQ-AI-023)\n\n3. Handle off-topic logic (REQ-AI-008, REQ-AI-010, REQ-AI-019):\n   - If response.IsOffTopic:\n     - Increment session.OffTopicWarningCount\n     - If OffTopicWarningCount > 1 AND no active alert exists: create HelpAlert with AlertType.OffTopic, set session.HasActiveAlert = true, session.AlertType = AlertType.OffTopic\n   - If NOT response.IsOffTopic AND session.OffTopicWarningCount > 0:\n     - Reset session.OffTopicWarningCount to 0 (warning cycle reset)\n\n4. Update student message IsOffTopic flag:\n   - Get the student message just saved (last message where IsFromStudent = true)\n   - Set IsOffTopic = response.IsOffTopic\n   - Set ContributesToProgress = response.ContributesToProgress\n\n5. Handle progress update (REQ-GOAL-011):\n   - If response.ProgressIncrement > 0:\n     - Calculate newProgress = session.CurrentProgress + response.ProgressIncrement\n     - Call _sessionService.UpdateProgressAsync(session.Id, newProgress)\n     - Reload session to check IsCompleted\n\n6. Save all changes to database\n7. Return AI ChatMessage",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Add goal completion handling to SendMessageAsync:\n\nAfter processing AI response, if the session is now completed (IsCompleted = true):\n- The ProcessAIResponseAsync already handles setting IsCompleted via StudentSessionService.UpdateProgressAsync\n- Log information about goal completion with session ID and student nickname\n- The response message should already include congratulations from the AI (LLM prompt handles this)\n\nNote: Per REQ-GOAL-014, subsequent calls to SendMessageAsync will throw InvalidOperationException due to the IsCompleted check at the start",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Register ChatService in DI container in Program.cs:\n\nAdd after the StudentSessionService registration (around line 61):\n// Register Chat service (REQ-CHAT-001 through REQ-CHAT-009)\nbuilder.Services.AddScoped<IChatService, ChatService>();\n\nNote: Must be Scoped (not Singleton) because it depends on DbContext which is scoped",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Progress must only increase, never decrease (REQ-GOAL-011) - use UpdateProgressAsync which already enforces this",
+    "Off-topic warning cycle resets when student returns to on-topic messages (REQ-AI-010) - must track and reset OffTopicWarningCount",
+    "First off-topic message = warning only (no alert), subsequent off-topic = escalate to teacher alert (REQ-AI-008)",
+    "LLM API errors should not throw exceptions - store error message and allow retry (REQ-AI-022, REQ-AI-023)",
+    "Student's message should be persisted even if LLM API fails (REQ-AI-021)",
+    "Inactivity timer resets when message is sent, regardless of API failure (REQ-AI-024) - call UpdateLastActivityAsync early",
+    "Chat input is disabled after goal completion (REQ-GOAL-014) - throw InvalidOperationException if session.IsCompleted",
+    "ContributesToProgress flag must be set on the STUDENT message, not the AI message (REQ-AI-028, REQ-CHAT-007)",
+    "Must deserialize GoalInterpretation JSON to get step descriptions for building ChatContext",
+    "Service must be registered as Scoped in DI because DbContext is scoped",
+    "HelpAlert creation should set both session.HasActiveAlert and session.AlertType for dashboard display",
+    "Context management: ChatContext.FromStudentSession already handles message history ordering",
+    "The LLMService already handles conversation summarization for long histories (>50 messages) via REQ-AI-027"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ILLMService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/LLMService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/StudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/ChatContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/ChatResponse.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/GoalInterpretation.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "issues": [],
+  "buildPassed": true,
+  "buildOutput": "Determining projects to restore...\n  Restored /src/ProgressPath/ProgressPath.csproj (in 6.54 sec).\n  ProgressPath -> /src/ProgressPath/bin/Debug/net8.0/ProgressPath.dll\n\nBuild succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:07.27"
+}

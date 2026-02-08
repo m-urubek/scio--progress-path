@@ -1,0 +1,44 @@
+{
+  "steps": [
+    {
+      "description": "Create the IStudentSessionService interface file. Define the namespace as ProgressPath.Services. Add XML documentation comments following the pattern in IGroupService. Include 6 method signatures:\n\n1. JoinGroupAsync(string joinCode, string nickname, string deviceId) returning Task<StudentSession> - handles student joining a group with nickname validation and device binding\n2. GetExistingSessionAsync(string joinCode, string deviceId) returning Task<StudentSession?> - retrieves an existing session for device+group combination (REQ-GROUP-018)\n3. IsNicknameAvailableAsync(int groupId, string nickname) returning Task<bool> - checks nickname uniqueness within group (REQ-GROUP-016)\n4. UpdateProgressAsync(int sessionId, int newProgress) returning Task - updates student progress (only increases, REQ-GOAL-011)\n5. UpdateLastActivityAsync(int sessionId) returning Task - updates LastActivityAt timestamp (REQ-AI-013)\n6. GetGroupSessionsAsync(int groupId) returning Task<IEnumerable<StudentSession>> - retrieves all sessions for a group for dashboard display\n\nInclude exception documentation for KeyNotFoundException, InvalidOperationException (for unconfirmed groups), and ArgumentException (for duplicate nicknames).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the StudentSessionService implementation class. Define namespace as ProgressPath.Services. Add using statements for Microsoft.EntityFrameworkCore, ProgressPath.Data, and ProgressPath.Models. Inject ProgressPathDbContext and ILogger<StudentSessionService> via constructor following GroupService pattern.\n\nImplement JoinGroupAsync:\n1. Call GetGroupByJoinCodeAsync (inline query or inject IGroupService) to get the group\n2. Throw KeyNotFoundException if group not found\n3. Throw InvalidOperationException if group.IsConfirmed is false with message 'Group is not yet available for joining'\n4. Check for existing session with same GroupId and DeviceId - if found, return existing session (session restoration per REQ-GROUP-018)\n5. Validate nickname uniqueness by querying StudentSessions for GroupId and Nickname (case-insensitive comparison using ToUpperInvariant)\n6. Throw ArgumentException if nickname is taken\n7. Create new StudentSession with GroupId, Nickname (trimmed), DeviceId, JoinedAt = DateTime.UtcNow, CurrentProgress = 0\n8. Add to DbContext and SaveChangesAsync\n9. Log info message and return the session\n\nImplement GetExistingSessionAsync:\n1. Normalize joinCode with ToUpperInvariant\n2. Query Groups to find by JoinCode\n3. If group null, return null\n4. Query StudentSessions for matching GroupId and DeviceId\n5. Return session or null\n\nImplement IsNicknameAvailableAsync:\n1. Query StudentSessions with GroupId and Nickname (case-insensitive using ToUpperInvariant comparison)\n2. Return true if not found, false if exists\n\nImplement UpdateProgressAsync:\n1. Find session by Id, throw KeyNotFoundException if not found\n2. Only update if newProgress > CurrentProgress (REQ-GOAL-011 - progress never decreases)\n3. Update CurrentProgress to newProgress\n4. If session.Group.GoalType == Binary and newProgress >= 1, set IsCompleted = true\n5. If session.Group.GoalType == Percentage and newProgress >= session.Group.TotalSteps, set IsCompleted = true\n6. SaveChangesAsync\n7. Log the progress update\n\nImplement UpdateLastActivityAsync:\n1. Find session by Id, throw KeyNotFoundException if not found\n2. Set LastActivityAt = DateTime.UtcNow\n3. SaveChangesAsync\n\nImplement GetGroupSessionsAsync:\n1. Query StudentSessions where GroupId matches\n2. Include HelpAlerts navigation property for alert status\n3. Order by JoinedAt descending\n4. Return ToListAsync result",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/StudentSessionService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the device.js JavaScript file for localStorage device ID management. Follow the pattern from particles.js for Blazor JS interop.\n\nDefine a constant DEVICE_ID_KEY = 'progresspath_device_id' for localStorage key.\n\nCreate getDeviceId function:\n1. Try to get value from localStorage using DEVICE_ID_KEY\n2. If exists, return it\n3. If not exists, generate a new UUID using crypto.randomUUID() (or fallback to manual UUID v4 generation for older browsers)\n4. Store the new UUID in localStorage\n5. Return the new UUID\n\nCreate setDeviceId function (for testing/debugging):\n1. Accept deviceId parameter\n2. Store in localStorage using DEVICE_ID_KEY\n\nCreate clearDeviceId function (for testing/debugging):\n1. Remove DEVICE_ID_KEY from localStorage\n\nExport all functions to window.deviceInterop object for Blazor JS interop:\n- window.deviceInterop.getDeviceId\n- window.deviceInterop.setDeviceId\n- window.deviceInterop.clearDeviceId\n\nInclude JSDoc comments for all functions.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js",
+      "action": "create"
+    },
+    {
+      "description": "Modify Program.cs to register the StudentSessionService in the DI container. Add a new service registration line after the GroupService registration (around line 58). Use the pattern: builder.Services.AddScoped<IStudentSessionService, StudentSessionService>(). Add a comment referencing REQ-GROUP-014 through REQ-GROUP-024 for traceability.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The StudentSession model already has a unique composite index on (GroupId, DeviceId) in DbContext, so the database will enforce one device per group constraint. The service should handle the DbUpdateException gracefully if a race condition occurs.",
+    "The StudentSession model also has a unique index on (GroupId, Nickname), so nickname uniqueness is enforced at the database level. Consider catching DbUpdateException for duplicate nicknames and throwing a more user-friendly ArgumentException.",
+    "Nickname comparison should be case-insensitive (use ToUpperInvariant) to prevent 'John' and 'john' being treated as different nicknames.",
+    "The UpdateProgressAsync method needs to load the Group navigation property to check GoalType and TotalSteps for completion logic. Use Include(s => s.Group) in the query.",
+    "For session restoration (GetExistingSessionAsync), ensure the Group navigation property is included if the caller needs group information.",
+    "The crypto.randomUUID() function is well-supported in modern browsers but has limited support in older browsers. Consider adding a fallback UUID v4 generation for broader compatibility.",
+    "The device.js file should be added to the _Host.cshtml or App.razor script includes, but that's outside the scope of this service implementation.",
+    "Progress updates (UpdateProgressAsync) should only be called from the chat service after AI determines progress - this service doesn't validate if the progress value is reasonable, just that it doesn't decrease."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/particles.js"
+  ]
+}

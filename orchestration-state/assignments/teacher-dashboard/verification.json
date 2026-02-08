@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "description": "SignalR event handlers use 'dynamic' type (lines 272, 295, 402) which bypasses compile-time type checking. Consider using strongly-typed DTO classes for better type safety."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "description": "The sorting method GetSortedSessions() uses 'HasActiveAlert' property, but this property may be stale on initial load since alerts are tracked separately in sessionAlerts dictionary. Consider synchronizing session.HasActiveAlert with sessionAlerts during BuildSessionAlertsMap()."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+      "description": "ViewFullChat navigates to '/groups/{GroupId}/students/{SessionId}/chat' but this route may not be implemented yet. This could lead to a 404 error when clicked."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:09.51"
+}

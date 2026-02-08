@@ -1,0 +1,55 @@
+{
+  "steps": [
+    {
+      "description": "Create the Teacher pages directory structure. This is a new folder that will contain teacher-specific pages including GroupsList.razor.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher",
+      "action": "create"
+    },
+    {
+      "description": "Create the Teacher components directory structure. This is a new folder that will contain teacher-specific reusable components like GroupCard.razor.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher",
+      "action": "create"
+    },
+    {
+      "description": "Create GroupCard.razor component that displays group summary information. The component should:\n\n1. Add @code block with parameters:\n   - [Parameter] Group Group - the group to display\n   - [Parameter] EventCallback OnClick - callback for when the card is clicked\n\n2. Create a clickable div with class \"inner-card cursor-pointer\" that invokes OnClick when clicked\n\n3. Display group name in h3 with class \"text-lg font-semibold gradient-text-pink mb-2\"\n\n4. Display creation date formatted as \"Created: MMM dd, yyyy\" with class \"text-sm opacity-75 mb-2\"\n\n5. Calculate and display active students count (students where IsCompleted == false) from Group.StudentSessions collection. Display as \"Active Students: X\" with class \"text-sm mb-2\"\n\n6. Calculate and display overall progress as an aggregate indicator:\n   - For groups with students: calculate average progress percentage across all student sessions using (CurrentProgress / TotalSteps * 100) for percentage goals or (IsCompleted ? 100 : 0) for binary goals\n   - For groups without students: show 0%\n   - Display a progress bar div with width based on calculated percentage using inline style\n   - The progress bar container should have class \"w-full h-2 rounded-full\" with background rgba(192, 132, 252, 0.2)\n   - The progress fill should have classes \"h-full rounded-full\" with gradient background from primary to secondary colors\n   - Display percentage text next to progress bar",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GroupCard.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create GroupsList.razor page for the teacher groups dashboard. The page should:\n\n1. Add page directive: @page \"/groups\"\n2. Add @attribute [Authorize] to require authentication (per REQ-AUTH-007)\n3. Inject IGroupService as GroupService and IAuthenticationService as AuthService\n4. Inject AuthenticationStateProvider for getting current user claims\n\n5. Add @code block with:\n   - private IEnumerable<Group>? groups field for storing loaded groups\n   - private bool isLoading = true field for loading state\n   - private string? errorMessage field for error handling\n\n6. Override OnInitializedAsync to:\n   - Get AuthenticationState from AuthenticationStateProvider\n   - Call AuthService.GetCurrentUserAsync(authState.User) to get current user\n   - If user is null, set errorMessage to \"Unable to load user information\"\n   - Call GroupService.GetTeacherGroupsAsync(user.Id) to load groups\n   - Set isLoading = false after loading\n   - Wrap in try-catch setting errorMessage on exception\n\n7. Add NavigateToGroup method that takes groupId int parameter and navigates to /groups/{groupId} using NavigationManager\n\n8. Add NavigateToCreateGroup method that navigates to /groups/create\n\n9. Create the page layout:\n   - Wrap content in container div with \"container mx-auto py-8 px-4\"\n   - Add header section with h1 \"My Groups\" using \"text-3xl font-bold gradient-text mb-6\"\n   - Add \"Create Group\" button with class \"glow-button\" that calls NavigateToCreateGroup\n\n10. Display loading state with \"Loading...\" text when isLoading is true\n\n11. Display error state showing errorMessage when not null using a div with error styling\n\n12. Handle empty state when groups?.Any() is false:\n   - Display a glow-container with friendly message: \"You haven't created any groups yet.\"\n   - Include secondary text encouraging teacher to create their first group\n   - Include a \"Create Your First Group\" glow-button linking to create page\n\n13. Display groups in a table when groups exist:\n   - Wrap table in glow-container with p-6\n   - Create HTML table with class \"w-full\"\n   - Add thead with columns: Name, Created, Active Students, Overall Progress (use opacity-75 for header text)\n   - Add tbody iterating over groups collection\n   - Each tr should have class \"inner-card cursor-pointer hover:bg-opacity-20\" and @onclick calling NavigateToGroup(group.Id)\n   - Display group.Name in first td\n   - Display group.CreatedAt.ToString(\"MMM dd, yyyy\") in second td\n   - Calculate active student count as group.StudentSessions.Count(s => !s.IsCompleted) for third td\n   - Calculate and display overall progress percentage in fourth td with a small progress bar (similar to GroupCard)\n\n14. Import ProgressPath.Models namespace for Group, GoalType access",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupsList.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update _Imports.razor to add namespace for Teacher components. Add the following line after the existing @using statements:\n\n@using ProgressPath.Components.Teacher\n@using ProgressPath.Models\n\nThis allows GroupCard and other Teacher components to be used without fully qualified names throughout the app, and provides access to model types like Group and GoalType.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The Group model already includes StudentSessions as a navigation property, and GetTeacherGroupsAsync includes .Include(g => g.StudentSessions), so progress calculation data is available",
+    "Active students are defined as those with IsCompleted == false per the StudentSession model",
+    "For overall progress calculation, handle both GoalType.Binary (0 or 100%) and GoalType.Percentage (CurrentProgress / TotalSteps * 100) cases",
+    "The page uses MainLayout which already includes ParticleBackground, so no additional particle background setup needed",
+    "Authentication is enforced via [Authorize] attribute which redirects to login per existing patterns in Home.razor",
+    "GetCurrentUserAsync requires the ClaimsPrincipal from AuthenticationState, not direct injection - must use AuthenticationStateProvider",
+    "Empty state should be visually appealing and guide the teacher to create their first group",
+    "Table rows should be clickable to navigate to group detail (route /groups/{groupId} which will be implemented in a separate assignment)",
+    "CSS classes glow-container, inner-card, glow-button, gradient-text, gradient-text-pink are already defined in app.css",
+    "NavigationManager needs to be injected for programmatic navigation to group detail and create pages",
+    "The Group model has TotalSteps property for percentage goals, and null for binary goals - handle null case appropriately",
+    "Consider showing IsConfirmed status visually - unconfirmed groups cannot be joined by students yet"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Home.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AuthenticationService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css"
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "steps": [
+    {
+      "description": "Add the device.js script include to App.razor body section, after the particles.js include. Add the line: <script src=\"js/device.js\"></script>",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add 'using ProgressPath.Components.Student' to the _Imports.razor file to enable the new Student components namespace",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create the Student directory under Components for student-facing components (this is implied by creating files in it)",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/JoinForm.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create JoinForm.razor component with the following structure: 1) Parameters: string Nickname (two-way binding), EventCallback OnSubmit, bool IsLoading, string? ErrorMessage, bool IsDisabled. 2) UI: A div with inner-card styling containing: a label 'Your Nickname', an InputText with @bind:get/@bind:set pattern for Nickname bound value, placeholder 'e.g., John Smith', maxlength 50, disabled when IsLoading or IsDisabled. Below that, a validation/error message section that shows ErrorMessage in pink color when not empty. Finally, a glow-button that triggers OnSubmit on click, showing 'Joining...' with spinner when IsLoading, otherwise 'Join Group'. Use the same spinner SVG pattern from GoalConfirmation.razor. Button should be disabled when IsLoading, IsDisabled, or Nickname is empty/whitespace.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/JoinForm.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create the Student Pages directory and JoinGroup.razor page with route /join/{JoinCode}. Add @page \"/join/{JoinCode}\" directive, @attribute [AllowAnonymous] for unauthenticated access. Inject: IGroupService GroupService, IStudentSessionService StudentSessionService, NavigationManager NavigationManager, IJSRuntime JSRuntime. Add [Parameter] public string JoinCode { get; set; }. Create private fields: Group? group, StudentSession? existingSession, string? deviceId, string nickname = string.Empty, bool isLoading = true, bool isJoining = false, string? errorMessage, enum PageState { Loading, NotFound, NotConfirmed, HasExistingSession, ShowJoinForm, Joining }. Set initial state = PageState.Loading.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "In JoinGroup.razor, implement OnAfterRenderAsync(bool firstRender). On firstRender: 1) Call deviceId = await JSRuntime.InvokeAsync<string>(\"deviceInterop.getDeviceId\") to get device ID via JS interop. 2) Try to get group via GroupService.GetGroupByJoinCodeAsync(JoinCode). 3) If group is null, set state = PageState.NotFound. 4) Else if group.IsConfirmed is false, set state = PageState.NotConfirmed. 5) Else, check for existing session via StudentSessionService.GetExistingSessionAsync(JoinCode, deviceId). If existingSession is not null, set state = PageState.HasExistingSession. 6) Else set state = PageState.ShowJoinForm. 7) Set isLoading = false and call StateHasChanged().",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "In JoinGroup.razor, implement the Razor markup. Use PageTitle 'Join Group - Progress Path'. Create a div with 'min-h-screen flex items-center justify-center p-4'. Inside, add a glow-container with max-width 28rem (matching Login.razor pattern). Use @switch(state) to render: 1) PageState.Loading: Show centered spinner with 'Loading...' text. 2) PageState.NotFound: Show error icon, 'Group Not Found' heading, 'The group you're looking for doesn't exist...' message. 3) PageState.NotConfirmed: Show clock/wait icon, 'Group Not Ready' heading, 'This group is not yet available for joining. Please wait...' message. 4) PageState.HasExistingSession: Show 'Welcome Back!' heading with gradient-text, 'You already have a session in this group.' message, show nickname from existingSession.Nickname, and a glow-button 'Continue to Chat' that calls NavigateToChat(). 5) PageState.ShowJoinForm: Show 'Join Group' heading with gradient-text, display group.Name below, render <JoinForm Nickname=\"@nickname\" NicknameChanged=\"@((v) => nickname = v)\" OnSubmit=\"HandleJoin\" IsLoading=\"@isJoining\" ErrorMessage=\"@errorMessage\" />.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "In JoinGroup.razor @code block, implement HandleJoin async method: 1) Set isJoining = true, errorMessage = null. 2) Validate nickname is not empty (trim and check). 3) Try: Call StudentSessionService.JoinGroupAsync(JoinCode, nickname.Trim(), deviceId) and store result in createdSession variable. 4) On success, call NavigateToChat(createdSession.Id). 5) Catch ArgumentException (nickname taken per REQ-GROUP-016): set errorMessage to the exception message. 6) Catch KeyNotFoundException: set errorMessage = 'Group not found.' 7) Catch InvalidOperationException (group not confirmed): set errorMessage = 'Group is not available.' 8) Catch general Exception: set errorMessage = 'An error occurred. Please try again.' 9) Finally: set isJoining = false.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "In JoinGroup.razor @code block, implement NavigateToChat method that takes optional sessionId parameter. Use NavigationManager.NavigateTo($\"/chat/{sessionId ?? existingSession?.Id}\"). Note: The chat page route is expected to be /chat/{sessionId} (to be created in student-chat-interface assignment).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add CSS styles to app.css for the join page specific styling. Add: 1) .join-page-icon class with size 4rem, centered flex, gradient background from primary to secondary, rounded-full, margin-bottom. 2) .join-page-icon-error variant using primary (pink) color. 3) .join-page-icon-wait variant using tertiary (teal) color. 4) .join-page-icon-success variant using secondary (purple) to tertiary gradient. These provide consistent icon styling for the different page states.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The device.js file already exists with deviceInterop.getDeviceId() function, but it's not included in App.razor - must add the script tag",
+    "JS interop calls must happen in OnAfterRenderAsync, not OnInitializedAsync, because JSRuntime is not available during prerendering in Blazor Server",
+    "The JoinForm component uses two-way binding pattern with separate Nickname and NicknameChanged parameters rather than @bind-Nickname to give parent full control",
+    "Error messages from StudentSessionService (ArgumentException for duplicate nickname) should be displayed directly as they are user-friendly per the implementation",
+    "The chat page route /chat/{sessionId} doesn't exist yet - it will be created in the student-chat-interface assignment. NavigateTo will work once that page is created",
+    "Session restoration (PageState.HasExistingSession) immediately shows the continue button rather than auto-redirecting, giving user control per good UX practice",
+    "All pages under /join/* are unauthenticated (AllowAnonymous) per REQ-GROUP-014",
+    "The Student directory needs to be created - Blazor will create it when the first file is added",
+    "PageState enum provides clear state machine for the different UI states, making the switch statement in Razor more readable",
+    "The group's WelcomeMessage is stored but not displayed on the join page - it should be shown in the chat interface after joining",
+    "CSS classes follow the existing pattern in app.css with glow effects and theme colors"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GoalConfirmation.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs"
+  ]
+}

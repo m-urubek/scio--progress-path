@@ -1,0 +1,89 @@
+{
+  "steps": [
+    {
+      "description": "Create the Services directory and AuthenticationService.cs. Define interface IAuthenticationService with methods: GetOrCreateUserAsync(ClaimsPrincipal principal) returning Task<User?>, GetCurrentUserAsync(ClaimsPrincipal principal) returning Task<User?>, and UpdateUserFromClaimsAsync(User user, ClaimsPrincipal principal) returning Task. Implement AuthenticationService class that: (1) extracts GoogleId from ClaimTypes.NameIdentifier claim, (2) extracts Email from ClaimTypes.Email claim, (3) extracts DisplayName from ClaimTypes.Name claim, (4) extracts ProfilePictureUrl from 'picture' claim, (5) in GetOrCreateUserAsync: queries Users by GoogleId, if not found creates new User with Role = UserRole.Teacher and saves to database, if found updates profile data from claims, (6) inject ProgressPathDbContext via constructor.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AuthenticationService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Configure Google OAuth authentication in Program.cs. Add using statements for Microsoft.AspNetCore.Authentication, Microsoft.AspNetCore.Authentication.Cookies, and Microsoft.AspNetCore.Authentication.Google. After AddDbContext, add: builder.Services.AddAuthentication(options => { options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme; options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme; }).AddCookie(options => { options.LoginPath = '/login'; options.LogoutPath = '/logout'; options.ExpireTimeSpan = TimeSpan.FromDays(7); }).AddGoogle(googleOptions => { googleOptions.ClientId = builder.Configuration['GoogleAuth:ClientId'] ?? ''; googleOptions.ClientSecret = builder.Configuration['GoogleAuth:ClientSecret'] ?? ''; googleOptions.Scope.Add('email'); googleOptions.Scope.Add('profile'); }). Register IAuthenticationService as scoped service. Add app.UseAuthentication() and app.UseAuthorization() after app.UseAntiforgery(). Add builder.Services.AddCascadingAuthenticationState() for Blazor auth state cascading.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Create Login.razor page at /login route. Add @page '/login' directive. Inject NavigationManager and IHttpContextAccessor. Add PageTitle 'Sign In - Progress Path'. Create a centered glow-container div with: (1) h1 heading 'Welcome to Progress Path' with gradient-text class, (2) paragraph explaining teacher sign-in, (3) form with method='get' and action set to Google challenge endpoint, (4) 'Sign in with Google' button using glow-button class with Google icon (inline SVG). Include logic to check if user is already authenticated and redirect to '/' if so. Add @attribute [AllowAnonymous] to allow unauthenticated access.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create Login.razor.cs code-behind file. Define partial class Login inheriting from ComponentBase. Add [Inject] for NavigationManager and AuthenticationStateProvider. Override OnInitializedAsync to check authentication state - if user is authenticated, navigate to '/'. Add ChallengeUser method that triggers Google OAuth challenge by navigating to the challenge endpoint with returnUrl parameter.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create AuthController.cs in a Controllers folder to handle OAuth endpoints. Add [Route('api/auth')] and [ApiController] attributes. Create endpoints: (1) GET 'login' - returns Challenge result with GoogleDefaults.AuthenticationScheme and redirect URI to '/api/auth/callback', (2) GET 'callback' - handles OAuth callback, calls AuthenticationService.GetOrCreateUserAsync to create/update user, redirects to '/', (3) GET 'logout' - signs out cookie auth and redirects to '/login'. Inject IAuthenticationService.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Controllers/AuthController.cs",
+      "action": "create"
+    },
+    {
+      "description": "Update Program.cs to add controller support. Add builder.Services.AddControllers() after AddRazorComponents. Add builder.Services.AddHttpContextAccessor() for accessing HttpContext in Blazor. Add app.MapControllers() before MapRazorComponents.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Create RedirectToLogin.razor component in Components/Shared folder. This component handles redirecting unauthenticated users to login. Add @inject NavigationManager NavigationManager. In OnInitialized, call NavigationManager.NavigateTo('/login', forceLoad: true) to redirect. The component renders nothing (empty fragment or loading message).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/RedirectToLogin.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update _Imports.razor to add authorization-related using statements. Add: @using Microsoft.AspNetCore.Components.Authorization, @using Microsoft.AspNetCore.Authorization, @using ProgressPath.Services. These enable AuthorizeView, CascadingAuthenticationState, and [Authorize] attribute usage throughout the app.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Update Routes.razor to wrap Router with CascadingAuthenticationState component. This provides authentication state to all child components. Add AuthorizeRouteView inside Found to handle authorization. Configure AuthorizeRouteView with NotAuthorized template that renders RedirectToLogin component, and Authorizing template that shows a loading indicator.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Routes.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create Logout.razor page at /logout route. Add @page '/logout' directive. Inject NavigationManager. On page load (OnInitializedAsync), navigate to '/api/auth/logout' with forceLoad: true to trigger the logout endpoint. Display a brief 'Signing out...' message while redirecting. Add @attribute [Authorize] to ensure only authenticated users can access.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Logout.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update MainLayout.razor to add a navigation header with user authentication status. Add @inject AuthenticationStateProvider AuthStateProvider. Create a header section with: (1) App logo/title linking to home, (2) AuthorizeView component showing user's display name when authenticated, (3) Logout link/button styled with nav-link class when authenticated, (4) Login link when not authenticated. Apply glow-container styling to the main content area.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Update Home.razor to be a protected page for authenticated teachers. Add @attribute [Authorize] to require authentication. Add @inject AuthenticationStateProvider AuthStateProvider. Display welcome message with user's display name from authentication state. This page will later become the teacher dashboard entry point. Keep the page simple for now - just confirm authentication works.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Home.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Google OAuth requires HTTPS in production (TC-003). Local development on localhost is allowed but production deployment must use HTTPS.",
+    "The authentication cookie ExpireTimeSpan should be reasonable (7 days suggested) to balance security and user convenience.",
+    "IHttpContextAccessor is needed to access HttpContext in Blazor Server for authentication operations.",
+    "CascadingAuthenticationState must wrap the entire Router to provide auth state to all pages.",
+    "AuthorizeRouteView handles the authorization flow within Blazor routing - it checks [Authorize] attributes and shows appropriate content.",
+    "The OAuth callback must occur via a regular HTTP controller endpoint, not a Blazor page, because Blazor Server cannot handle OAuth redirects directly.",
+    "When extracting claims from Google OAuth, the 'picture' claim contains the profile picture URL (not a standard ClaimTypes value).",
+    "The User model already has GoogleId field indexed as unique - ensure GetOrCreateUserAsync queries by GoogleId to find existing users.",
+    "RedirectToLogin must use forceLoad: true to ensure a full page navigation that triggers the authentication challenge.",
+    "The StudentSession model is for anonymous device-bound students (per REQ-GROUP-017) - they don't use Google OAuth. Only teachers authenticate.",
+    "Configuration values for Google OAuth (ClientId, ClientSecret) are already structured in appsettings.json under 'GoogleAuth' section."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/User.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Routes.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Home.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.json"
+  ]
+}

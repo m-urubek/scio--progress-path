@@ -1,0 +1,350 @@
+{
+  "assignments": [
+    {
+      "id": "project-setup",
+      "title": "Initialize Blazor Server Project with Core Dependencies",
+      "description": "Create the foundational Blazor Server project structure and configure essential dependencies.\n\n**Tasks:**\n1. Create a new Blazor Server project targeting .NET 8/9 using `dotnet new blazorserver`\n2. Add NuGet packages:\n   - Microsoft.EntityFrameworkCore.SqlServer (database)\n   - Microsoft.AspNetCore.Authentication.Google (OAuth)\n   - QRCoder (QR code generation)\n   - LLMTornado (AI integration)\n3. Configure `appsettings.json` and `appsettings.Development.json` with placeholder settings for:\n   - ConnectionStrings:DefaultConnection\n   - LLM settings (LLM_PROVIDER, LLM_MODEL, LLM_API_KEY)\n   - Google OAuth (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)\n   - APPLICATION_BASE_URL\n4. Create `.gitignore` with entries for bin/, obj/, .vs/, .env, deploy-package/, deploy.zip, .azure/\n5. Configure Program.cs with basic service registration\n6. Update the workspace file if needed\n\n**Expected structure:**\n- ProgressPath/ (main project folder)\n  - Program.cs\n  - appsettings.json\n  - appsettings.Development.json\n  - ProgressPath.csproj\n  - wwwroot/\n  - Components/ (or Pages/ for older template)",
+      "dependsOn": [],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.json",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.Development.json",
+        "/Users/mu/Coding/scio--progress-path/.gitignore"
+      ]
+    },
+    {
+      "id": "theme-and-styling",
+      "title": "Configure Tailwind CSS and TherapistTemplate Theme",
+      "description": "Set up Tailwind CSS with the TherapistTemplate-inspired theme including custom colors, fonts, and glow effects.\n\n**Tasks:**\n1. Install Tailwind CSS via npm (create package.json in wwwroot or project root)\n2. Configure tailwind.config.js with custom theme extending:\n   - Colors: primary (#ff6b9d), secondary (#c084fc), tertiary (#22d3d8), accent (#a78bfa), highlight (#f0abfc), dark-bg (#0f0a1a), dark-surface (#1a0f2e)\n3. Create main CSS file (wwwroot/css/app.css) with:\n   - Tailwind imports\n   - Custom CSS variables for glow effects\n   - Keyframe animations (glow-pulse, float)\n   - Component classes (.glow-container, .inner-card, .gradient-text, .glow-button)\n   - Base styles for typography (Outfit for headings, Inter for body)\n4. Add Google Fonts link in the layout for Outfit and Inter fonts\n5. Configure build task in package.json for Tailwind compilation\n6. Create npm build script integration with dotnet build if needed\n\n**Reference:** TherapistTemplate CSS at /Users/mu/Coding/TherapistTemplate/frontend/src/index.css",
+      "dependsOn": [
+        "project-setup"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/package.json",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/tailwind.config.js",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.min.css",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor"
+      ]
+    },
+    {
+      "id": "particle-background",
+      "title": "Implement Animated Particle Background with tsparticles",
+      "description": "Add the interactive particle background using tsparticles via JavaScript interop.\n\n**Tasks:**\n1. Install tsparticles package (npm install tsparticles)\n2. Create wwwroot/js/particles.js with:\n   - Particle configuration matching TherapistTemplate (pink/purple/teal colors)\n   - Interactive modes: grab on hover (140px distance), push on click (2 particles)\n   - Link lines forming triangles\n   - Initialization function callable from Blazor\n3. Create a ParticleBackground.razor component that:\n   - Uses IJSRuntime to initialize particles on AfterRender\n   - Renders a container div with appropriate z-index for background\n4. Add the particle container to the main layout\n5. Handle proper disposal of particles on component unmount\n\n**REQ refs:** REQ-THEME-004, REQ-THEME-005, REQ-THEME-006, REQ-THEME-007",
+      "dependsOn": [
+        "theme-and-styling"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/particles.js",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ParticleBackground.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor"
+      ]
+    },
+    {
+      "id": "database-models",
+      "title": "Create Entity Framework Data Models and DbContext",
+      "description": "Design and implement the core data models and Entity Framework DbContext for the application.\n\n**Models to create:**\n1. **User** (Teachers): Id, Email, DisplayName, ProfilePictureUrl, Role (enum: Teacher), GoogleId, CreatedAt\n2. **Group**: Id, Name, JoinCode (unique, 6-8 chars), GoalDescription, GoalType (enum: Binary/Percentage), TotalSteps (nullable, min 2 for percentage), GoalInterpretation (JSON), IsConfirmed, WelcomeMessage, TeacherId (FK), CreatedAt\n3. **StudentSession**: Id, GroupId (FK), Nickname, DeviceId, CurrentProgress (int), IsCompleted, OffTopicWarningCount, HasActiveAlert, AlertType (enum), LastActivityAt, JoinedAt\n4. **ChatMessage**: Id, StudentSessionId (FK), Content, IsFromStudent, ContributesToProgress, IsOffTopic, Timestamp\n5. **HelpAlert**: Id, StudentSessionId (FK), AlertType (enum: OffTopic/Inactivity), IsResolved, CreatedAt, ResolvedAt\n\n**DbContext:**\n- Create ProgressPathDbContext with DbSets for all models\n- Configure relationships and indexes (JoinCode unique, DeviceId+GroupId unique)\n- Add EF Core migrations setup\n\n**REQ refs:** REQ-GOAL-001 through REQ-GOAL-005, REQ-GROUP-016, REQ-AI-028",
+      "dependsOn": [
+        "project-setup"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/User.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs"
+      ]
+    },
+    {
+      "id": "google-auth",
+      "title": "Implement Google OAuth Authentication",
+      "description": "Set up Google OAuth 2.0 authentication for teachers with role-based authorization.\n\n**Tasks:**\n1. Configure Google OAuth in Program.cs:\n   - AddAuthentication with Google scheme\n   - Configure ClientId, ClientSecret from configuration\n   - Set up cookie authentication for session persistence\n2. Create AuthenticationService to:\n   - Handle first-time login (create User record with Teacher role)\n   - Retrieve/update user profile data from Google claims\n3. Create Login.razor page with \"Sign in with Google\" button (styled with glow-button)\n4. Create Logout functionality\n5. Add [Authorize] attribute support for protected pages\n6. Create RedirectToLogin component for unauthenticated access to protected routes\n7. Configure cascading AuthenticationState for child components\n\n**REQ refs:** REQ-AUTH-001 through REQ-AUTH-007",
+      "dependsOn": [
+        "database-models",
+        "theme-and-styling"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AuthenticationService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Logout.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/RedirectToLogin.razor"
+      ]
+    },
+    {
+      "id": "llm-service",
+      "title": "Create LLM Service with LLMTornado Integration",
+      "description": "Implement the LLM service layer using LLMTornado for AI-powered features.\n\n**Tasks:**\n1. Create ILLMService interface with methods:\n   - Task<GoalInterpretation> InterpretGoalAsync(string goalDescription)\n   - Task<ChatResponse> ProcessStudentMessageAsync(ChatContext context)\n2. Create LLMService implementation:\n   - Configure LLMTornado with provider/model/API key from settings\n   - Implement goal interpretation (returns goal type, steps, welcome message)\n   - Implement message processing (returns AI response, progress update, is_off_topic flag)\n3. Create DTO classes:\n   - GoalInterpretation (GoalType, Steps list, WelcomeMessage)\n   - ChatContext (GoalDefinition, ProgressState, OffTopicCounter, MessageHistory)\n   - ChatResponse (Message, ProgressIncrement, IsOffTopic, ContributesToProgress)\n4. Create prompt templates for:\n   - Goal interpretation prompt\n   - Student guidance prompt (includes rules about not giving direct answers)\n5. Add retry logic and error handling for API failures\n6. Register service in DI container\n\n**CRITICAL: LLMTornado API verification required.** ChatRequest.Model is typed as ChatModel, NOT string. When passing a model name from config (string), verify how to convert: ChatModel may support implicit conversion from string, or you may need a constructor/factory. DO NOT guess — use WebFetch to check https://github.com/lofcz/LlmTornado or https://llmtornado.ai for the correct API. Also verify: CreateConversation overloads, how to add assistant messages (AppendExampleChatbotOutput vs AddAssistantMessage), and GetResponse return type (string?).\n\n**REQ refs:** REQ-LLM-001 through REQ-LLM-004, REQ-AI-001 through REQ-AI-005, REQ-AI-025 through REQ-AI-028",
+      "dependsOn": [
+        "project-setup"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ILLMService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/LLMService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/GoalInterpretation.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/ChatContext.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/ChatResponse.cs",
+        "/Users/mu/Co   xding/scio--progress-path/ProgressPath/Services/PromptTemplates.cs"
+      ]
+    },
+    {
+      "id": "group-service",
+      "title": "Create Group Management Service",
+      "description": "Implement the business logic layer for group creation and management.\n\n**Tasks:**\n1. Create IGroupService interface with methods:\n   - Task<Group> CreateGroupAsync(string name, string goalDescription, int teacherId)\n   - Task<GoalInterpretation> GetGoalInterpretationAsync(int groupId)\n   - Task ConfirmGoalInterpretationAsync(int groupId)\n   - Task RejectGoalInterpretationAsync(int groupId, string newGoalDescription)\n   - Task<Group> GetGroupByJoinCodeAsync(string joinCode)\n   - Task<IEnumerable<Group>> GetTeacherGroupsAsync(int teacherId)\n   - string GenerateJoinCode()\n2. Create GroupService implementation:\n   - Generate unique 6-8 character alphanumeric join codes\n   - Integrate with LLMService for goal interpretation\n   - Handle goal confirmation workflow\n   - Enforce goal description max 500 characters\n3. Create QR code generation helper using QRCoder:\n   - Generate QR code for join URL: {BaseUrl}/join/{JoinCode}\n   - Return as base64 image data\n4. Register service in DI container\n\n**REQ refs:** REQ-GROUP-001 through REQ-GROUP-013",
+      "dependsOn": [
+        "database-models",
+        "llm-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/QRCodeService.cs"
+      ]
+    },
+    {
+      "id": "student-session-service",
+      "title": "Create Student Session Management Service",
+      "description": "Implement student session handling including device binding and session recovery.\n\n**Tasks:**\n1. Create IStudentSessionService interface with methods:\n   - Task<StudentSession> JoinGroupAsync(string joinCode, string nickname, string deviceId)\n   - Task<StudentSession?> GetExistingSessionAsync(string joinCode, string deviceId)\n   - Task<bool> IsNicknameAvailableAsync(int groupId, string nickname)\n   - Task UpdateProgressAsync(int sessionId, int newProgress)\n   - Task UpdateLastActivityAsync(int sessionId)\n   - Task<IEnumerable<StudentSession>> GetGroupSessionsAsync(int groupId)\n2. Create StudentSessionService implementation:\n   - Check for existing device+group session (localStorage binding)\n   - Validate nickname uniqueness within group\n   - Prevent joining unconfirmed groups\n   - Handle session restoration\n3. Create JavaScript interop for localStorage device ID:\n   - wwwroot/js/device.js with get/set deviceId functions\n   - Generate UUID for new devices\n4. Register service in DI container\n\n**REQ refs:** REQ-GROUP-014 through REQ-GROUP-024",
+      "dependsOn": [
+        "database-models",
+        "group-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/StudentSessionService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js"
+      ]
+    },
+    {
+      "id": "chat-service",
+      "title": "Create Chat and Progress Tracking Service",
+      "description": "Implement the chat message handling and progress tracking logic.\n\n**Tasks:**\n1. Create IChatService interface with methods:\n   - Task<ChatMessage> SendMessageAsync(int sessionId, string content)\n   - Task<IEnumerable<ChatMessage>> GetChatHistoryAsync(int sessionId)\n   - Task<IEnumerable<ChatMessage>> GetProgressMessagesAsync(int sessionId) // ContributesToProgress = true\n2. Create ChatService implementation:\n   - Store student message\n   - Call LLMService.ProcessStudentMessageAsync with full context\n   - Store AI response message\n   - Update student progress (only increase, never decrease)\n   - Flag messages with ContributesToProgress and IsOffTopic\n   - Handle goal completion (set IsCompleted flag)\n   - Handle LLM API errors gracefully (store error message, allow retry)\n3. Implement context management:\n   - Build ChatContext with goal, progress, warning counter, history\n   - Summarize older messages if exceeding ~50 messages\n4. Register service in DI container\n\n**REQ refs:** REQ-CHAT-001 through REQ-CHAT-009, REQ-GOAL-006 through REQ-GOAL-016, REQ-AI-021 through REQ-AI-028",
+      "dependsOn": [
+        "database-models",
+        "llm-service",
+        "student-session-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs"
+      ]
+    },
+    {
+      "id": "alert-service",
+      "title": "Create Alert and Inactivity Detection Service",
+      "description": "Implement the help alert system including off-topic detection and inactivity monitoring.\n\n**Tasks:**\n1. Create IAlertService interface with methods:\n   - Task ProcessOffTopicMessageAsync(int sessionId)\n   - Task<HelpAlert?> CreateInactivityAlertAsync(int sessionId)\n   - Task ResolveAlertAsync(int alertId)\n   - Task<IEnumerable<HelpAlert>> GetUnresolvedAlertsAsync(int groupId)\n   - Task ResetOffTopicCounterAsync(int sessionId)\n2. Create AlertService implementation:\n   - Track off-topic warning count per session\n   - First off-topic: increment counter (no alert)\n   - Subsequent off-topic without on-topic: create alert\n   - Reset counter when on-topic message received\n3. Create InactivityMonitorService (background service):\n   - Run periodic checks (every minute)\n   - Query sessions with LastActivityAt > 10 minutes ago\n   - Create inactivity alert (one-time per session until resolved)\n   - Timer starts at join, resets on each message sent\n4. Handle alert resolution:\n   - Allow new alerts after resolution\n   - Restart warning cycle for off-topic\n5. Register services in DI container\n\n**REQ refs:** REQ-AI-006 through REQ-AI-020",
+      "dependsOn": [
+        "database-models",
+        "student-session-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IAlertService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AlertService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/InactivityMonitorService.cs"
+      ]
+    },
+    {
+      "id": "signalr-hub",
+      "title": "Create SignalR Hub for Real-Time Communication",
+      "description": "Implement the SignalR hub for real-time updates between students and teachers.\n\n**Tasks:**\n1. Create ProgressHub SignalR hub with methods:\n   - JoinGroupChannel(string groupId) - for teachers to receive group updates\n   - JoinStudentChannel(string sessionId) - for students to receive their updates\n   - LeaveChannels()\n2. Define client methods to invoke:\n   - ReceiveProgress(sessionId, progress) - progress update notification\n   - ReceiveMessage(message) - new chat message\n   - ReceiveAlert(alert) - new help alert\n   - AlertResolved(alertId) - alert was resolved\n   - StudentResumedActivity(nickname) - toast notification\n   - StudentJoined(session) - new student joined\n3. Create HubNotificationService:\n   - Inject IHubContext<ProgressHub>\n   - Methods to broadcast updates to appropriate channels\n   - NotifyProgressUpdate, NotifyNewMessage, NotifyAlert, etc.\n4. Configure SignalR in Program.cs\n5. Map hub endpoint (/progresshub)\n\n**REQ refs:** REQ-RT-001 through REQ-RT-005, REQ-DASH-005",
+      "dependsOn": [
+        "project-setup"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs/ProgressHub.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/HubNotificationService.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs"
+      ]
+    },
+    {
+      "id": "teacher-groups-page",
+      "title": "Create Teacher Groups List Page",
+      "description": "Implement the main teacher dashboard showing all their groups.\n\n**Tasks:**\n1. Create GroupsList.razor page (route: /groups):\n   - Require authentication\n   - Display table with columns: Name, Creation Date, Active Students, Overall Progress\n   - Add \"Create Group\" button (glow-button styled)\n   - Make rows clickable to navigate to group detail\n   - Style with glow-container and inner-card classes\n2. Create GroupCard.razor component:\n   - Display group summary information\n   - Show progress as aggregate indicator\n   - Count active (non-completed) students\n3. Apply MainLayout with particle background\n4. Handle empty state (no groups created yet)\n\n**REQ refs:** REQ-DASH-001, REQ-DASH-002, REQ-DASH-003, REQ-GROUP-003",
+      "dependsOn": [
+        "google-auth",
+        "group-service",
+        "particle-background"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupsList.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GroupCard.razor"
+      ]
+    },
+    {
+      "id": "create-group-page",
+      "title": "Create Group Creation and Goal Confirmation Flow",
+      "description": "Implement the multi-step group creation flow with AI goal interpretation and confirmation.\n\n**Tasks:**\n1. Create CreateGroup.razor page (route: /groups/create):\n   - Form with Group Name input and Goal Description textarea (max 500 chars)\n   - Submit triggers AI interpretation\n   - Loading state while waiting for AI response\n2. Create GoalConfirmation.razor component:\n   - Display interpreted goal type (Binary or Percentage)\n   - For percentage: show number of steps and step descriptions\n   - Show sample welcome message\n   - Accept/Reject buttons\n3. Handle confirmation flow:\n   - Accept: Mark group as confirmed, show QR code\n   - Reject: Return to edit form, allow resubmission\n4. Create QRCodeDisplay.razor component:\n   - Display generated QR code\n   - Show join URL text\n   - Copy to clipboard button\n5. Handle AI API errors with retry option\n6. Style all components with theme classes\n\n**REQ refs:** REQ-GROUP-001 through REQ-GROUP-011",
+      "dependsOn": [
+        "teacher-groups-page",
+        "group-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GoalConfirmation.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/QRCodeDisplay.razor"
+      ]
+    },
+    {
+      "id": "teacher-dashboard",
+      "title": "Create Real-Time Teacher Monitoring Dashboard",
+      "description": "Implement the single-group monitoring dashboard with real-time student tracking.\n\n**Tasks:**\n1. Create GroupDashboard.razor page (route: /groups/{groupId}):\n   - Require authentication\n   - Display group name and QR code\n   - Show scrollable list of students\n   - Connect to SignalR for real-time updates\n2. Create StudentRow.razor component:\n   - Display nickname and progress (progress bar for percentage, checkmark for binary)\n   - Show alert indicators (yellow for inactivity, red for off-topic)\n   - Tooltips on alert icons\n   - \"Mark Resolved\" button for alerts\n   - Expandable detail section\n3. Create StudentDetail.razor component (inline expansion):\n   - Show key messages that contributed to progress (ContributesToProgress=true)\n   - \"View Full Chat\" button\n4. Implement sorting: students with alerts at top\n5. Toast notifications for:\n   - New alerts\n   - Activity resumption (auto-dismiss after 4 seconds)\n6. Handle ~30 concurrent students efficiently\n\n**REQ refs:** REQ-DASH-004 through REQ-DASH-017",
+      "dependsOn": [
+        "teacher-groups-page",
+        "signalr-hub",
+        "alert-service"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor"
+      ]
+    },
+    {
+      "id": "chat-history-modal",
+      "title": "Create Full Chat History View for Teachers",
+      "description": "Implement the modal/page for teachers to view complete student chat history.\n\n**Tasks:**\n1. Create ChatHistoryModal.razor component:\n   - Display all messages in chronological order with timestamps\n   - Highlight messages that contributed to progress (green border)\n   - Show off-topic indicators\n   - Render math expressions and code snippets\n   - Modal or slide-in panel design\n2. Create MessageDisplay.razor component:\n   - Different styling for student vs AI messages\n   - Timestamp display\n   - Progress contribution indicator\n   - Math/code rendering integration\n3. Handle both in-progress and completed students identically\n4. Style with theme classes and glow effects\n\n**REQ refs:** REQ-DASH-014 through REQ-DASH-017, REQ-CHAT-005 through REQ-CHAT-008",
+      "dependsOn": [
+        "teacher-dashboard"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/ChatHistoryModal.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor"
+      ]
+    },
+    {
+      "id": "student-join-page",
+      "title": "Create Student Join Flow",
+      "description": "Implement the student group joining experience via QR code.\n\n**Tasks:**\n1. Create JoinGroup.razor page (route: /join/{joinCode}):\n   - No authentication required\n   - Check if group exists and is confirmed\n   - Check for existing device session (restore if found)\n   - Show nickname input form for new joins\n   - Validate nickname uniqueness\n   - Display error if group not found or not confirmed\n2. Implement device binding via JS interop:\n   - Get/create device ID from localStorage\n   - Per-group session tracking\n3. Create JoinForm.razor component:\n   - Nickname input with validation\n   - Join button (glow-button styled)\n   - Error message display\n4. On successful join:\n   - Create StudentSession\n   - Redirect to chat page\n5. Handle session restoration:\n   - Detect existing session\n   - Auto-redirect to chat\n\n**REQ refs:** REQ-GROUP-014 through REQ-GROUP-024",
+      "dependsOn": [
+        "student-session-service",
+        "theme-and-styling"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/JoinForm.razor"
+      ]
+    },
+    {
+      "id": "student-chat-page",
+      "title": "Create Student Chat Interface",
+      "description": "Implement the main student chat experience with AI tutor.\n\n**Tasks:**\n1. Create StudentChat.razor page (route: /chat/{sessionId}):\n   - Display progress indicator (progress bar with percentage)\n   - Show welcome message and goal description\n   - Chat message list with auto-scroll\n   - Message input with send button\n   - Connect to SignalR for real-time updates\n2. Create ChatMessageList.razor component:\n   - Display messages chronologically with timestamps\n   - Highlight progress-contributing messages (green border)\n   - Show off-topic warnings (visible only to student)\n3. Create ChatInput.razor component:\n   - Text input field\n   - Send button\n   - Disable when goal is completed\n4. Implement message sending:\n   - Call ChatService.SendMessageAsync\n   - Show loading state while AI responds\n   - Handle errors gracefully\n5. Create ProgressIndicator.razor component:\n   - Progress bar for percentage goals\n   - Checkmark for binary goals\n   - Rounded percentage display\n6. Handle goal completion:\n   - Show completion message\n   - Disable chat input immediately\n\n**REQ refs:** REQ-CHAT-001 through REQ-CHAT-009, REQ-GOAL-007, REQ-GOAL-012 through REQ-GOAL-016",
+      "dependsOn": [
+        "chat-service",
+        "signalr-hub",
+        "student-join-page"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatMessageList.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatInput.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ProgressIndicator.razor"
+      ]
+    },
+    {
+      "id": "math-code-rendering",
+      "title": "Add Math and Code Rendering Support",
+      "description": "Implement rich content rendering for mathematical expressions and code snippets.\n\n**Tasks:**\n1. Add KaTeX or MathJax for math rendering:\n   - Include library via CDN or npm\n   - Create JS interop for rendering LaTeX expressions\n2. Add Prism.js or highlight.js for code highlighting:\n   - Include library and common language styles\n   - Create JS interop for highlighting code blocks\n3. Create RichContentRenderer.razor component:\n   - Parse message content for LaTeX ($...$ or $$...$$)\n   - Parse for code blocks (```language...```)\n   - Render plain text, math, and code appropriately\n4. Integrate with MessageDisplay.razor component\n5. Handle rendering on dynamic content updates\n6. Style code blocks with theme colors\n\n**REQ refs:** REQ-CHAT-010, REQ-CHAT-011",
+      "dependsOn": [
+        "student-chat-page"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/rendering.js",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/RichContentRenderer.razor"
+      ]
+    },
+    {
+      "id": "voice-input",
+      "title": "Add Voice Dictation Support",
+      "description": "Implement voice input using browser Web Speech API.\n\n**Tasks:**\n1. Create wwwroot/js/speech.js:\n   - Check for Web Speech API support\n   - Initialize SpeechRecognition\n   - Start/stop recording functions\n   - Callback for transcribed text\n   - Handle recognition errors\n2. Create VoiceDictation.razor component:\n   - Microphone button with recording state indication (color/animation)\n   - Hide button if API not supported\n   - Use JS interop to start/stop recording\n   - Insert transcribed text into input field\n3. Integrate with ChatInput.razor:\n   - Add voice button next to send button\n   - Transcribed text appears in input for review before sending\n4. Visual feedback:\n   - Button color change when recording\n   - Optional pulse animation during recording\n5. Feature detection via `'webkitSpeechRecognition' in window || 'SpeechRecognition' in window`\n\n**REQ refs:** REQ-CHAT-012 through REQ-CHAT-015",
+      "dependsOn": [
+        "student-chat-page"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/speech.js",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/VoiceDictation.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatInput.razor"
+      ]
+    },
+    {
+      "id": "reconnection-handling",
+      "title": "Implement Connection Drop and Reconnection Handling",
+      "description": "Handle Blazor Server connection drops with reconnection UI and state recovery.\n\n**Tasks:**\n1. Configure Blazor reconnection settings in Program.cs or _Host.cshtml\n2. Create ReconnectionOverlay.razor component:\n   - Visible overlay when connection is lost\n   - Display reconnection status message\n   - Style with theme (semi-transparent with glow effects)\n3. Implement chat history restoration:\n   - On reconnect, fetch latest messages from server\n   - Sync local UI state with server state\n4. Handle SignalR reconnection:\n   - Re-join appropriate channels on reconnect\n   - Refresh data after successful reconnection\n5. Use Blazor's built-in reconnection mechanism\n6. Block message sending while disconnected (inherent to Blazor Server)\n\n**REQ refs:** REQ-RT-002 through REQ-RT-005",
+      "dependsOn": [
+        "student-chat-page",
+        "signalr-hub"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ReconnectionOverlay.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor"
+      ]
+    },
+    {
+      "id": "multi-tab-sync",
+      "title": "Implement Multi-Tab Session Synchronization",
+      "description": "Ensure multiple browser tabs for the same session stay synchronized.\n\n**Tasks:**\n1. Enhance SignalR subscription:\n   - Subscribe by sessionId for student tabs\n   - All tabs for same session receive updates\n2. Handle message synchronization:\n   - When tab A sends message, tab B receives via SignalR\n   - Progress updates broadcast to all session tabs\n3. Create BroadcastChannel JS interop (optional fallback):\n   - For non-SignalR state sync between tabs\n4. Test scenarios:\n   - Same device, same browser, multiple tabs\n   - Message from tab A appears in tab B\n   - Progress updates reflect in all tabs\n5. Prevent duplicate message submissions if needed\n\n**REQ refs:** REQ-GROUP-020, AC-RT-03",
+      "dependsOn": [
+        "student-chat-page",
+        "signalr-hub"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs/ProgressHub.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor"
+      ]
+    },
+    {
+      "id": "docker-compose",
+      "title": "Create Docker Compose Development Environment",
+      "description": "Set up Docker Compose for local development with SQL Server.\n\n**Tasks:**\n1. Create docker-compose.yml with services:\n   - app: Blazor Server application\n     - Build from Dockerfile\n     - Mount source for hot-reload\n     - Environment variables from .env\n     - Port mapping (e.g., 5000:80)\n   - db: SQL Server Linux container (mcr.microsoft.com/mssql/server)\n     - Persistent volume for data\n     - SA_PASSWORD from .env\n     - Port mapping (1433:1433)\n2. Create multi-stage Dockerfile:\n   - SDK stage for build\n   - Runtime stage for production\n   - Hot-reload support for development\n3. Create .dockerignore:\n   - bin/, obj/, .vs/, node_modules/, etc.\n4. Create .env.example documenting:\n   - SA_PASSWORD\n   - LLM_PROVIDER, LLM_MODEL, LLM_API_KEY\n   - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET\n   - APPLICATION_BASE_URL\n5. Add .env to .gitignore\n6. Configure connection string from environment variable\n\n**REQ refs:** REQ-DEPLOY-016 through REQ-DEPLOY-021",
+      "dependsOn": [
+        "database-models"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Dockerfile",
+        "/Users/mu/Coding/scio--progress-path/.dockerignore",
+        "/Users/mu/Coding/scio--progress-path/.env.example"
+      ]
+    },
+    {
+      "id": "vscode-tasks",
+      "title": "Create VS Code Tasks and Azure Deployment Scripts",
+      "description": "Set up VS Code tasks for development and Azure deployment following SuperSmashHoesV2 patterns.\n\n**Tasks:**\n1. Create .vscode/tasks.json with tasks:\n   - Build for Deployment (dotnet publish -c Release)\n   - Prepare Deployment Package (create deploy-package/)\n   - Create Zip Package\n   - Deploy to App Service (az webapp deploy --type zip)\n   - Full Deploy (.azure/deploy.sh)\n   - Soft Deploy (.azure/soft-deploy.sh)\n   - Check Quota (.azure/check-quota.sh)\n   - Restart App\n   - Docker tasks: Start, Start (Background), Stop, Stop & Clean, Logs, Rebuild\n2. Create .vscode/settings.json with configurable Azure values:\n   - progresspath.azure.appName\n   - progresspath.azure.resourceGroup\n3. Create .azure/ directory with scripts:\n   - deploy-config.sh (Azure configuration template)\n   - deploy.sh (full deployment with login check, quota check, stop/start, health check)\n   - soft-deploy.sh (quick deploy without stop/start)\n   - check-quota.sh (Azure Free tier quota monitoring)\n4. Add .azure/ to .gitignore\n\n**REQ refs:** REQ-DEPLOY-001 through REQ-DEPLOY-015, REQ-DEPLOY-022 through REQ-DEPLOY-027",
+      "dependsOn": [
+        "docker-compose"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/.vscode/tasks.json",
+        "/Users/mu/Coding/scio--progress-path/.vscode/settings.json",
+        "/Users/mu/Coding/scio--progress-path/.azure/deploy-config.sh",
+        "/Users/mu/Coding/scio--progress-path/.azure/deploy.sh",
+        "/Users/mu/Coding/scio--progress-path/.azure/soft-deploy.sh",
+        "/Users/mu/Coding/scio--progress-path/.azure/check-quota.sh"
+      ]
+    },
+    {
+      "id": "final-integration",
+      "title": "Final Integration, Navigation, and Polish",
+      "description": "Complete the application with final integration, navigation structure, and UI polish.\n\n**Tasks:**\n1. Create main navigation structure:\n   - Header with logo, navigation links, user menu\n   - Different navigation for authenticated vs anonymous users\n   - Logout functionality\n2. Create landing page:\n   - App introduction\n   - Login button for teachers\n   - Join via code option for students\n3. Configure routing:\n   - /login - Login page\n   - /groups - Teacher groups list (protected)\n   - /groups/create - Create group (protected)\n   - /groups/{id} - Group dashboard (protected)\n   - /join/{code} - Student join page\n   - /chat/{sessionId} - Student chat\n4. Add error boundaries and 404 handling\n5. Polish UI animations and transitions\n6. Ensure consistent theme application across all pages\n7. Final SignalR integration test across components\n8. Update Program.cs with final middleware order\n9. Create database migration and seeding for development\n\n**REQ refs:** All visual theme requirements, routing, and navigation",
+      "dependsOn": [
+        "teacher-dashboard",
+        "chat-history-modal",
+        "math-code-rendering",
+        "voice-input",
+        "reconnection-handling",
+        "multi-tab-sync"
+      ],
+      "estimatedFiles": [
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/NavMenu.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Index.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Error.razor",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+        "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/Migrations/InitialCreate.cs"
+      ]
+    }
+  ]
+}

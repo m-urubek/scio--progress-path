@@ -1,0 +1,62 @@
+{
+  "steps": [
+    {
+      "description": "Create the MessageDisplay.razor component in Components/Shared directory. This reusable component will render a single chat message with: (1) Container div with different styling based on IsFromStudent (student messages right-aligned with secondary color, AI messages left-aligned with tertiary color), (2) Message content area with the Content property displayed, (3) Timestamp display showing message.Timestamp formatted as 'MMM dd, HH:mm', (4) Green border indicator (using style 'border-left: 3px solid var(--color-tertiary)' with background 'rgba(34, 211, 216, 0.08)') when ContributesToProgress is true, (5) Subtle off-topic warning indicator (small yellow/orange icon or badge visible when IsOffTopic is true and IsFromStudent is true), (6) Placeholder divs for math/code rendering with data attributes for future JS interop integration. Component should accept parameters: ChatMessage Message (required), bool ShowProgressIndicator = true, bool ShowTimestamp = true.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create ChatHistoryModal.razor component in Components/Teacher directory. This component displays the full chat history as a modal/slide-in panel. Structure: (1) Overlay backdrop div (fixed, full screen, rgba(0,0,0,0.5) background, z-index 40), (2) Modal panel div (fixed right-0, slide-in from right, w-full md:w-2/3 lg:w-1/2, full height, glow-container styling, overflow-y-auto), (3) Header section with student nickname, close button (X icon), and optional progress indicator showing current progress/total steps or binary completion status, (4) Message list container using space-y-3 with all messages from chatMessages collection rendered using MessageDisplay component, (5) Loading state with spinner while isLoading is true, (6) Empty state message when no messages exist. Parameters: int SessionId, string Nickname, int GroupId, GoalType GoalType, int? TotalSteps, int CurrentProgress, bool IsCompleted, bool IsVisible, EventCallback OnClose. Use IChatService.GetChatHistoryAsync to load messages on initialization.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/ChatHistoryModal.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create the ChatHistoryPage.razor page in Components/Pages/Teacher directory with route '@page \"/groups/{GroupId:int}/students/{SessionId:int}/chat\"'. This page: (1) Uses [Authorize] attribute, (2) Injects IChatService, IStudentSessionService, IGroupService, IAuthenticationService, AuthenticationStateProvider, NavigationManager, IDbContextFactory, ILogger, (3) Loads the session and group data with authorization check (verify current user owns the group), (4) Shows error message if unauthorized or not found, (5) Renders ChatHistoryModal component as embedded (not as modal overlay but as the main page content in a glow-container), (6) Includes back navigation link to '/groups/{GroupId}'. The page loads: session via DbContext query with Group included, validates TeacherId matches current user, loads chat messages via ChatService.GetChatHistoryAsync.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/ChatHistoryPage.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add CSS styles to app.css for the new components. Add: (1) .chat-history-modal class with slide-in animation from right (@keyframes slide-in-right), (2) .message-bubble base class with padding, border-radius 0.75rem, max-width 80%, (3) .message-student class (background rgba(192, 132, 252, 0.15), border-color secondary, margin-left auto for right alignment), (4) .message-ai class (background rgba(34, 211, 216, 0.1), border-color tertiary, margin-right auto for left alignment), (5) .message-progress class (border-left: 3px solid var(--color-tertiary), background rgba(34, 211, 216, 0.08)), (6) .message-offtopic-indicator class (small warning badge style), (7) .chat-messages-container with custom scrollbar styling matching progress-messages-container, (8) .modal-overlay class for backdrop, (9) .modal-close-button hover effects.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Add corresponding CSS styles to app.src.css (the Tailwind source file) to mirror the app.css additions. This ensures the styles are included when the CSS is built with Tailwind. Add the same classes: .chat-history-modal, .message-bubble, .message-student, .message-ai, .message-progress, .message-offtopic-indicator, .chat-messages-container, .modal-overlay, .modal-close-button with appropriate @keyframes slide-in-right animation.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+      "action": "modify"
+    },
+    {
+      "description": "Modify StudentDetail.razor to optionally render ChatHistoryModal inline when a 'showFullChat' flag is true, as an alternative to navigation. Add: (1) private bool showFullChat = false field, (2) Modify ViewFullChat method to set showFullChat = true and StateHasChanged() instead of navigating, (3) Add a conditional section that renders ChatHistoryModal when showFullChat is true, passing SessionId, Nickname, GroupId, and OnClose callback that sets showFullChat = false. Also add parameters to get GoalType and TotalSteps from parent. This provides an inline modal experience while keeping the navigation option as fallback.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Modify StudentRow.razor to pass GoalType and TotalSteps parameters to the nested StudentDetail component. Update the StudentDetail component call on line 109 to include GoalType=\"GoalType\" and TotalSteps=\"TotalSteps\" parameters so StudentDetail can pass them to ChatHistoryModal.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The chat history page route /groups/{GroupId}/students/{SessionId}/chat must match exactly what StudentDetail.ViewFullChat() navigates to",
+    "Authorization check is critical - must verify the current teacher owns the group before showing student chat history to prevent unauthorized access",
+    "Messages should display identically for in-progress and completed students per task requirement #3",
+    "Math/code rendering integration is mentioned in requirements (REQ-CHAT-003, REQ-CHAT-004) but no JS interop exists yet - use placeholder structure with data attributes that can be enhanced later with KaTeX/highlight.js",
+    "The ChatHistoryModal can be used both as a modal overlay (with visibility toggle) and as a page component - design it to support both use cases",
+    "Ensure the slide-in animation does not cause layout issues on mobile devices - use transform: translateX() for performance",
+    "ChatMessage.ContributesToProgress marks student messages that led to progress - highlight these with green border per REQ-CHAT-007",
+    "ChatMessage.IsOffTopic marks off-topic student messages - show subtle indicator per REQ-CHAT-008, only visible in this teacher view",
+    "Follow existing patterns: use glow-container, inner-card classes; inject services via constructor; use ILogger for error handling",
+    "The app.css file is the compiled fallback - both it and app.src.css need to be updated to maintain consistency"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor"
+  ]
+}

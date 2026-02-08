@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/LLMService.cs",
+      "description": "The BuildMessageHistoryForRequest method is marked async but only uses await when messages exceed MaxMessagesBeforeSummarization threshold. Consider making it synchronous for the common case or use ValueTask."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\\n    0 Warning(s)\\n    0 Error(s)\\n\\nTime Elapsed 00:00:08.92"
+}

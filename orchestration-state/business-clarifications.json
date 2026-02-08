@@ -1,0 +1,34 @@
+[
+  {
+    "round": 1,
+    "questions": [
+      {
+        "question": "Can two students in the same group use the same nickname? If a teacher sees two \"Honza\" entries on the dashboard, is that acceptable or should nicknames be unique per group?",
+        "reason": "The PRD specifies students enter a nickname (REQ-GROUP-011) and teachers monitor a student list (REQ-DASH-005), but doesn't address uniqueness. Duplicate nicknames would make it hard for teachers to identify which student needs help."
+      },
+      {
+        "question": "When the goal description is written in a non-English language (e.g., Czech), should the welcome message show the original goal text or an English translation? The AI responds in English, but the goal itself might not be.",
+        "reason": "REQ-CHAT-001 says students see a welcome message with the goal description, and AC-AI-01 explicitly mentions goals in Czech. But FC-003 only says the AI *responds* in English — it's unclear whether the goal description itself should be translated for the student."
+      },
+      {
+        "question": "After a teacher resolves a help alert for a student, can that same student trigger new help alerts (e.g., goes off-topic again, or becomes inactive again)? Or is resolution a one-time dismissal?",
+        "reason": "REQ-DASH-004 covers resolving alerts and REQ-AI-007 covers warning cycle resets, but the interaction between resolving an alert and subsequent alert generation isn't specified. This affects how useful the alert system is in practice."
+      }
+    ],
+    "answers": [
+      {
+        "question": "Can two students in the same group use the same nickname? If a teacher sees two \"Honza\" entries on the dashboard, is that acceptable or should nicknames be unique per group?",
+        "answer": "unique"
+      },
+      {
+        "question": "When the goal description is written in a non-English language (e.g., Czech), should the welcome message show the original goal text or an English translation? The AI responds in English, but the goal itself might not be.",
+        "answer": "assume the assignment is always in english"
+      },
+      {
+        "question": "After a teacher resolves a help alert for a student, can that same student trigger new help alerts (e.g., goes off-topic again, or becomes inactive again)? Or is resolution a one-time dismissal?",
+        "answer": "can do again"
+      }
+    ],
+    "source": "human"
+  }
+]

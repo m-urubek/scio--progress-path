@@ -1,0 +1,37 @@
+{
+  "steps": [
+    {
+      "description": "Update the LLMTornado package reference to use the correct version. According to NuGet.org, LLMTornado's latest stable version should be specified without a hardcoded version (use wildcard or latest version like 4.0.0 or check NuGet for the exact current version). Replace 'Version=\"1.0.0\"' with the correct version number. The package exists but version 1.0.0 doesn't - check NuGet.org for the actual latest version (likely 4.x or higher based on the GitHub releases).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj",
+      "action": "modify"
+    },
+    {
+      "description": "Remove all placeholder secrets from appsettings.Development.json. Keep only the structure keys with empty values (matching appsettings.json) and add a comment explaining to use user-secrets or environment variables. The ConnectionString should reference (localdb) or a Docker container without password in the connection string. Specifically: 1) Remove 'Password=YourPassword' and placeholder values, 2) Set ConnectionString to empty or use LocalDB reference, 3) Set LLM:ApiKey to empty string, 4) Set GoogleAuth:ClientId and ClientSecret to empty strings, 5) Add a top-level '_comment' property explaining that secrets should be configured via 'dotnet user-secrets' or environment variables.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.Development.json",
+      "action": "modify"
+    },
+    {
+      "description": "The naming convention warning can be addressed by adding comments in appsettings.json explaining the environment variable mapping. Add a '_ConfigurationNote' property at the top level explaining: 'Configuration keys can be overridden via environment variables using double underscore notation. Example: LLM__Provider maps to LLM:Provider, GoogleAuth__ClientId maps to GoogleAuth:ClientId, etc. The PRD references LLM_PROVIDER, LLM_MODEL, LLM_API_KEY - these map to LLM:Provider, LLM:Model, LLM:ApiKey respectively.' This documents the intentional deviation from the assignment's naming for .NET convention compliance.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.json",
+      "action": "modify"
+    },
+    {
+      "description": "Remove the duplicate CSS variable TODO comments from MainLayout.razor.css since they are already properly defined in app.css. Keep only the layout-specific styles (the main element styles). Remove lines 2-10 containing the TODO comment with CSS variable definitions.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor.css",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "LLMTornado package version: The implementer MUST verify the correct version on NuGet.org before implementing. Version 1.0.0 does not exist - the package uses semantic versioning starting from higher numbers. Check https://www.nuget.org/packages/LLMTornado for the latest stable version.",
+    "User secrets vs environment variables: For local development, .NET user-secrets is the recommended approach ('dotnet user-secrets init' and 'dotnet user-secrets set'). For production/Docker, environment variables are used. The appsettings.Development.json should NOT contain actual secrets.",
+    "Configuration naming: While the PRD uses SCREAMING_SNAKE_CASE (LLM_PROVIDER, GOOGLE_CLIENT_ID), .NET convention uses nested JSON with PascalCase. Environment variables can still use the flat format with double underscore (LLM__Provider) which .NET configuration automatically maps to the nested structure.",
+    "The .gitignore already excludes .env files and .azure/ directory, which is correct for secret management.",
+    "Since dotnet SDK is not installed on the verification machine, the implementer should locally verify the build after making changes, especially the NuGet package restoration."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.json",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/appsettings.Development.json",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor.css"
+  ]
+}
