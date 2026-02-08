@@ -1,0 +1,67 @@
+@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+
+<div class="min-h-screen flex flex-col">
+    <!-- Navigation Header -->
+    <header class="px-4 py-4" style="background: rgba(15, 10, 26, 0.8); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(34, 211, 216, 0.2);">
+        <nav class="container mx-auto flex items-center justify-between">
+            <!-- App Logo/Title -->
+            <a href="/" class="flex items-center gap-2 text-xl font-heading font-bold gradient-text-pink">
+                Progress Path
+            </a>
+
+            <!-- Navigation Links and Auth Status -->
+            <div class="flex items-center gap-6">
+                <AuthorizeView>
+                    <Authorized>
+                        <!-- Navigation Links for Authenticated Users -->
+                        <a href="/groups" class="nav-link text-sm @(IsActivePath("/groups") ? "active" : "")">
+                            My Groups
+                        </a>
+                        <!-- User Display Name -->
+                        <span class="text-sm opacity-75">
+                            @context.User.Identity?.Name
+                        </span>
+                        <!-- Logout Link -->
+                        <a href="/logout" class="nav-link text-sm">
+                            Sign Out
+                        </a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/login" class="nav-link text-sm @(IsActivePath("/login") ? "active" : "")">
+                            Sign In
+                        </a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 relative">
+        <ParticleBackground />
+        <div class="relative z-10 page-content">
+            @Body
+        </div>
+    </main>
+</div>
+
+@code {
+    /// <summary>
+    /// Determines if the given path is the active route or a parent of the current route.
+    /// </summary>
+    /// <param name="path">The path to check against the current URI.</param>
+    /// <returns>True if the path is active (exact match or parent path).</returns>
+    private bool IsActivePath(string path)
+    {
+        var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+        // Ensure we're comparing paths without leading slashes
+        var normalizedCurrentPath = "/" + currentPath.TrimStart('/');
+        var normalizedPath = path.TrimEnd('/');
+
+        // Exact match or starts with path (for nested routes like /groups/*)
+        return normalizedCurrentPath.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase) ||
+               normalizedCurrentPath.StartsWith(normalizedPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+}

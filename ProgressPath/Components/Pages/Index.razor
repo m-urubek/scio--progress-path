@@ -1,0 +1,191 @@
+@page "/"
+@attribute [AllowAnonymous]
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Progress Path - AI-Powered Student Progress Tracking</PageTitle>
+
+@*
+    Landing Page
+    - For anonymous users: shows app introduction, sign-in button, and join code option
+    - For authenticated users: redirects to /groups
+*@
+
+<div class="min-h-screen py-12">
+    <div class="container mx-auto px-4">
+        <!-- Hero Section -->
+        <div class="text-center mb-16">
+            <h1 class="text-5xl font-bold mb-6 font-heading gradient-text">
+                Progress Path
+            </h1>
+            <p class="text-xl opacity-80 max-w-2xl mx-auto">
+                AI-powered real-time student progress tracking. Teachers create learning groups,
+                students join via QR codes, and everyone stays on track with intelligent guidance.
+            </p>
+        </div>
+
+        @if (!isAuthenticated)
+        {
+            <!-- Features Section for Anonymous Users -->
+            <div class="grid md:grid-cols-3 gap-6 mb-16">
+                <!-- Feature 1: AI-Powered Learning -->
+                <div class="glow-container p-6 feature-card">
+                    <div class="inner-card text-center h-full">
+                        <div class="feature-icon mb-4">
+                            <!-- AI Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-tertiary">
+                                <path d="M12 2a10 10 0 1 0 10 10H12V2Z"/>
+                                <path d="M12 12 2.1 9.27"/>
+                                <path d="M12 12l8.86-3.82"/>
+                                <path d="M12 12 7.46 20.64"/>
+                                <path d="M12 12l4.54 8.64"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 gradient-text-pink">AI-Powered Learning</h3>
+                        <p class="opacity-75">
+                            Intelligent AI tutor guides students toward goals without giving direct answers.
+                            Automatic progress tracking and real-time feedback.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Feature 2: Real-Time Monitoring -->
+                <div class="glow-container p-6 feature-card">
+                    <div class="inner-card text-center h-full">
+                        <div class="feature-icon mb-4">
+                            <!-- Monitor Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-secondary">
+                                <rect width="20" height="14" x="2" y="3" rx="2"/>
+                                <line x1="8" x2="16" y1="21" y2="21"/>
+                                <line x1="12" x2="12" y1="17" y2="21"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 gradient-text-pink">Real-Time Monitoring</h3>
+                        <p class="opacity-75">
+                            Teachers see every student's progress instantly. Get alerts when students
+                            need help or go off-topic.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Feature 3: QR Code Joining -->
+                <div class="glow-container p-6 feature-card">
+                    <div class="inner-card text-center h-full">
+                        <div class="feature-icon mb-4">
+                            <!-- QR Code Icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-primary">
+                                <rect width="5" height="5" x="3" y="3" rx="1"/>
+                                <rect width="5" height="5" x="16" y="3" rx="1"/>
+                                <rect width="5" height="5" x="3" y="16" rx="1"/>
+                                <path d="M21 16h-3a2 2 0 0 0-2 2v3"/>
+                                <path d="M21 21v.01"/>
+                                <path d="M12 7v3a2 2 0 0 1-2 2H7"/>
+                                <path d="M3 12h.01"/>
+                                <path d="M12 3h.01"/>
+                                <path d="M12 16v.01"/>
+                                <path d="M16 12h1"/>
+                                <path d="M21 12v.01"/>
+                                <path d="M12 21v-1"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 gradient-text-pink">Easy QR Code Joining</h3>
+                        <p class="opacity-75">
+                            Students join groups instantly by scanning a QR code. No accounts needed —
+                            just scan, enter a nickname, and start learning.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA Section -->
+            <div class="flex flex-col md:flex-row gap-8 justify-center items-center">
+                <!-- Teacher Sign In -->
+                <div class="glow-container p-8 text-center" style="max-width: 400px;">
+                    <h2 class="text-2xl font-semibold mb-4 gradient-text-pink">For Teachers</h2>
+                    <p class="opacity-75 mb-6">
+                        Sign in to create learning groups, set goals, and monitor your students' progress in real-time.
+                    </p>
+                    <a href="/login" class="glow-button inline-flex items-center gap-2 px-6 py-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                            <polyline points="10 17 15 12 10 7"/>
+                            <line x1="15" x2="3" y1="12" y2="12"/>
+                        </svg>
+                        Sign In as Teacher
+                    </a>
+                </div>
+
+                <!-- Student Join -->
+                <div class="glow-container p-8 text-center" style="max-width: 400px;">
+                    <h2 class="text-2xl font-semibold mb-4 gradient-text">For Students</h2>
+                    <p class="opacity-75 mb-6">
+                        Have a join code? Enter it below to join your teacher's learning group.
+                    </p>
+                    <div class="flex gap-2">
+                        <input type="text"
+                               @bind="joinCode"
+                               @bind:event="oninput"
+                               @onkeydown="HandleJoinKeyDown"
+                               placeholder="Enter code"
+                               class="join-code-input flex-1 text-center text-lg uppercase tracking-wider"
+                               maxlength="8" />
+                        <button class="glow-button px-4" @onclick="JoinWithCode" disabled="@(string.IsNullOrWhiteSpace(joinCode))">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Loading state while redirecting -->
+            <div class="text-center">
+                <div class="glow-container p-8 inline-block">
+                    <p class="text-lg opacity-75">Redirecting to your groups...</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private string joinCode = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check authentication state
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        // Redirect authenticated users to groups list
+        if (isAuthenticated)
+        {
+            NavigationManager.NavigateTo("/groups", forceLoad: false);
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the join page with the entered code.
+    /// </summary>
+    private void JoinWithCode()
+    {
+        if (!string.IsNullOrWhiteSpace(joinCode))
+        {
+            var normalizedCode = joinCode.Trim().ToUpperInvariant();
+            NavigationManager.NavigateTo($"/join/{normalizedCode}");
+        }
+    }
+
+    /// <summary>
+    /// Handles keyboard input in the join code field.
+    /// Submits on Enter key.
+    /// </summary>
+    private void HandleJoinKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(joinCode))
+        {
+            JoinWithCode();
+        }
+    }
+}

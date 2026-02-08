@@ -1,0 +1,251 @@
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+
+@*
+    RichContentRenderer.razor - Parses and renders rich content including:
+    - LaTeX math expressions ($...$ for inline, $$...$$ for block)
+    - Code blocks (```language...```) with syntax highlighting
+    - Plain text segments
+
+    REQ-CHAT-010: Math rendering support (LaTeX/KaTeX)
+    REQ-CHAT-011: Code syntax highlighting support (Prism.js)
+*@
+
+<div id="@_elementId" class="rich-content">
+    @foreach (var segment in _parsedSegments)
+    {
+        @switch (segment.Type)
+        {
+            case ContentSegmentType.Text:
+                <span class="text-segment">@((MarkupString)EscapeAndPreserveWhitespace(segment.Content))</span>
+                break;
+
+            case ContentSegmentType.InlineMath:
+                <span class="math-inline" data-math="@segment.Content"></span>
+                break;
+
+            case ContentSegmentType.BlockMath:
+                <div class="math-block" data-math="@segment.Content"></div>
+                break;
+
+            case ContentSegmentType.CodeBlock:
+                <pre class="code-block"><code class="language-@segment.Language">@segment.Content</code></pre>
+                break;
+
+            case ContentSegmentType.InlineCode:
+                <code class="inline-code">@segment.Content</code>
+                break;
+        }
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The raw message content to parse and render.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional unique identifier for this element (used for JS interop).
+    /// If not provided, a unique ID will be generated.
+    /// </summary>
+    [Parameter]
+    public string? ElementId { get; set; }
+
+    private string _elementId = string.Empty;
+    private List<ContentSegment> _parsedSegments = new();
+    private string? _previousContent;
+
+    protected override void OnInitialized()
+    {
+        _elementId = ElementId ?? $"rich-content-{Guid.NewGuid():N}";
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Only re-parse if content has changed
+        if (_previousContent != Content)
+        {
+            _previousContent = Content;
+            _parsedSegments = ParseContent(Content);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Call JS interop to render math and highlight code
+        // This runs after the DOM has been updated
+        try
+        {
+            await JS.InvokeVoidAsync("renderingInterop.renderRichContentById", _elementId);
+        }
+        catch (JSException ex)
+        {
+            // JS interop may fail during prerendering or if libraries aren't loaded yet
+            Console.WriteLine($"Rich content rendering JS interop error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Parses the content string into segments of different types:
+    /// plain text, inline math, block math, code blocks, and inline code.
+    /// </summary>
+    private List<ContentSegment> ParseContent(string? content)
+    {
+        var segments = new List<ContentSegment>();
+
+        if (string.IsNullOrEmpty(content))
+        {
+            return segments;
+        }
+
+        // Pattern priority (order matters):
+        // 1. Block math ($$...$$) - must come before inline math
+        // 2. Code blocks (```language\n...\n```)
+        // 3. Inline math ($...$) - non-greedy, single line
+        // 4. Inline code (`...`)
+        // 5. Plain text (everything else)
+
+        // Combined regex pattern to match all special content types
+        // Using explicit ordering to handle overlapping patterns
+        var pattern = new Regex(
+            @"(\$\$[\s\S]+?\$\$)" +          // Block math: $$...$$
+            @"|(\\\[[\s\S]+?\\\])" +          // Block math: \[...\]
+            @"|(```(\w*)\r?\n([\s\S]*?)```)" + // Code block: ```lang\n...\n```
+            @"|(\\\([\s\S]+?\\\))" +          // Inline math: \(...\)
+            @"|(?<!\$)(\$(?!\$)[^\$\r\n]+?\$)(?!\$)" + // Inline math: $...$ (not $$)
+            @"|(`[^`\r\n]+?`)",               // Inline code: `...`
+            RegexOptions.Multiline
+        );
+
+        int lastIndex = 0;
+        var matches = pattern.Matches(content);
+
+        foreach (Match match in matches)
+        {
+            // Add any plain text before this match
+            if (match.Index > lastIndex)
+            {
+                var plainText = content.Substring(lastIndex, match.Index - lastIndex);
+                if (!string.IsNullOrEmpty(plainText))
+                {
+                    segments.Add(new ContentSegment(ContentSegmentType.Text, plainText));
+                }
+            }
+
+            // Determine which group matched and create appropriate segment
+            if (!string.IsNullOrEmpty(match.Groups[1].Value))
+            {
+                // Block math: $$...$$
+                var latex = match.Groups[1].Value;
+                latex = latex.Substring(2, latex.Length - 4); // Remove $$ delimiters
+                segments.Add(new ContentSegment(ContentSegmentType.BlockMath, latex.Trim()));
+            }
+            else if (!string.IsNullOrEmpty(match.Groups[2].Value))
+            {
+                // Block math: \[...\]
+                var latex = match.Groups[2].Value;
+                latex = latex.Substring(2, latex.Length - 4); // Remove \[ and \] delimiters
+                segments.Add(new ContentSegment(ContentSegmentType.BlockMath, latex.Trim()));
+            }
+            else if (!string.IsNullOrEmpty(match.Groups[3].Value))
+            {
+                // Code block: ```language\n...\n```
+                var language = match.Groups[4].Value;
+                var code = match.Groups[5].Value;
+                segments.Add(new ContentSegment(ContentSegmentType.CodeBlock, code.Trim(), MapLanguage(language)));
+            }
+            else if (!string.IsNullOrEmpty(match.Groups[6].Value))
+            {
+                // Inline math: \(...\)
+                var latex = match.Groups[6].Value;
+                latex = latex.Substring(2, latex.Length - 4); // Remove \( and \) delimiters
+                segments.Add(new ContentSegment(ContentSegmentType.InlineMath, latex.Trim()));
+            }
+            else if (!string.IsNullOrEmpty(match.Groups[7].Value))
+            {
+                // Inline math: $...$
+                var latex = match.Groups[7].Value;
+                latex = latex.Substring(1, latex.Length - 2); // Remove $ delimiters
+                segments.Add(new ContentSegment(ContentSegmentType.InlineMath, latex.Trim()));
+            }
+            else if (!string.IsNullOrEmpty(match.Groups[8].Value))
+            {
+                // Inline code: `...`
+                var code = match.Groups[8].Value;
+                code = code.Substring(1, code.Length - 2); // Remove ` delimiters
+                segments.Add(new ContentSegment(ContentSegmentType.InlineCode, code));
+            }
+
+            lastIndex = match.Index + match.Length;
+        }
+
+        // Add any remaining plain text after the last match
+        if (lastIndex < content.Length)
+        {
+            var remainingText = content.Substring(lastIndex);
+            if (!string.IsNullOrEmpty(remainingText))
+            {
+                segments.Add(new ContentSegment(ContentSegmentType.Text, remainingText));
+            }
+        }
+
+        return segments;
+    }
+
+    /// <summary>
+    /// Maps common language aliases to Prism.js language identifiers.
+    /// </summary>
+    private string MapLanguage(string language)
+    {
+        if (string.IsNullOrEmpty(language))
+            return "plaintext";
+
+        return language.ToLowerInvariant() switch
+        {
+            "js" => "javascript",
+            "ts" => "typescript",
+            "py" => "python",
+            "cs" => "csharp",
+            "c#" => "csharp",
+            "html" => "markup",
+            "xml" => "markup",
+            _ => language.ToLowerInvariant()
+        };
+    }
+
+    /// <summary>
+    /// Escapes HTML special characters and preserves whitespace/newlines.
+    /// </summary>
+    private string EscapeAndPreserveWhitespace(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        // Escape HTML entities
+        var escaped = System.Web.HttpUtility.HtmlEncode(text);
+
+        // Preserve newlines by converting to <br>
+        escaped = escaped.Replace("\r\n", "<br>").Replace("\n", "<br>");
+
+        return escaped;
+    }
+
+    /// <summary>
+    /// Represents a segment of parsed content.
+    /// </summary>
+    private record ContentSegment(ContentSegmentType Type, string Content, string Language = "plaintext");
+
+    /// <summary>
+    /// Types of content segments.
+    /// </summary>
+    private enum ContentSegmentType
+    {
+        Text,
+        InlineMath,
+        BlockMath,
+        CodeBlock,
+        InlineCode
+    }
+}

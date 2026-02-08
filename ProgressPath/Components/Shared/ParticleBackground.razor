@@ -1,0 +1,48 @@
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+@*
+    Animated particle background component using tsparticles
+    Creates interactive particles with TherapistTemplate color theme
+    - Hover: grab mode connecting nearby particles
+    - Click: push mode adding new particles
+*@
+<div id="@containerId"
+     style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; overflow: hidden; pointer-events: none;">
+</div>
+
+@code {
+    private const string containerId = "tsparticles-bg";
+    private bool _initialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            await JSRuntime.InvokeVoidAsync("particlesInterop.init", containerId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            // Attempt to destroy particles instance
+            // This may fail if the JS runtime is no longer available (circuit disconnection)
+            await JSRuntime.InvokeVoidAsync("particlesInterop.destroy", containerId);
+        }
+        catch (JSDisconnectedException)
+        {
+            // JS runtime is no longer available during circuit disconnection - ignore
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component disposed before cleanup could complete - ignore
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering or after disconnect - ignore
+        }
+    }
+}

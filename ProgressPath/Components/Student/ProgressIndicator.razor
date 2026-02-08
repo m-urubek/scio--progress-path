@@ -1,0 +1,96 @@
+@using ProgressPath.Models
+
+@* ProgressIndicator.razor - Displays progress for both binary and percentage goals.
+   REQ-GOAL-007: Student sees current progress indicator as a progress bar with percentage.
+   REQ-GOAL-012: Percentages rounded to whole integers.
+   REQ-GOAL-001: Binary goals displayed as checkmark, percentage goals as progress bar. *@
+
+@if (GoalType == GoalType.Binary)
+{
+    @* Binary Goal: Circle indicator with checkmark when complete *@
+    @if (IsCompleted)
+    {
+        <div class="flex items-center gap-2">
+            <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                 style="background: linear-gradient(to right, var(--color-tertiary), var(--color-secondary));">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <span class="text-sm font-medium" style="color: var(--color-tertiary);">Complete!</span>
+        </div>
+    }
+    else
+    {
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full border-2 opacity-50"
+                 style="border-color: var(--color-secondary);"></div>
+            <span class="text-sm opacity-75">In Progress</span>
+        </div>
+    }
+}
+else
+{
+    @* Percentage Goal: Progress bar with percentage display *@
+    var percentage = CalculatePercentage();
+    <div class="flex items-center gap-3">
+        <div class="w-24 h-2 rounded-full" style="background: rgba(192, 132, 252, 0.2);">
+            <div class="h-full rounded-full transition-all duration-300"
+                 style="width: @(percentage)%; background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+            </div>
+        </div>
+        <span class="text-sm font-medium" style="min-width: 40px; color: @(percentage == 100 ? "var(--color-tertiary)" : "inherit");">
+            @(percentage)%
+        </span>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The type of goal (Binary or Percentage).
+    /// </summary>
+    [Parameter]
+    public GoalType GoalType { get; set; }
+
+    /// <summary>
+    /// Current progress value (number of steps completed).
+    /// </summary>
+    [Parameter]
+    public int CurrentProgress { get; set; }
+
+    /// <summary>
+    /// Total steps for percentage goals.
+    /// Null or 1 for binary goals.
+    /// </summary>
+    [Parameter]
+    public int? TotalSteps { get; set; }
+
+    /// <summary>
+    /// Whether the goal is completed.
+    /// </summary>
+    [Parameter]
+    public bool IsCompleted { get; set; }
+
+    /// <summary>
+    /// Calculates the progress percentage for display (REQ-GOAL-012).
+    /// Returns rounded integer between 0 and 100.
+    /// </summary>
+    private int CalculatePercentage()
+    {
+        if (GoalType == GoalType.Binary)
+        {
+            return IsCompleted ? 100 : 0;
+        }
+
+        var totalSteps = TotalSteps ?? 1;
+        if (totalSteps <= 0) return 0;
+
+        var percentage = (int)Math.Round(CurrentProgress * 100.0 / totalSteps);
+
+        // Ensure bounds (REQ-GOAL-012: 0% for no progress, 100% for full completion)
+        if (percentage > 100) percentage = 100;
+        if (percentage < 0) percentage = 0;
+
+        return percentage;
+    }
+}

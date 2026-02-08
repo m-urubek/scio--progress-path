@@ -1,0 +1,274 @@
+@using ProgressPath.Models
+
+<div class="glow-container p-8">
+    <!-- Header -->
+    <h1 class="text-3xl font-bold gradient-text mb-2">
+        Confirm Goal Interpretation
+    </h1>
+    <p class="text-lg opacity-75 mb-6">
+        @GroupName
+    </p>
+
+    <!-- Goal Type Display -->
+    <div class="inner-card mb-6">
+        <h2 class="text-sm font-medium opacity-75 mb-2">Goal Type</h2>
+        <div class="flex items-center gap-3">
+            @if (GoalType == GoalType.Binary)
+            {
+                <div class="flex items-center justify-center w-10 h-10 rounded-full"
+                     style="background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <span class="text-xl font-semibold gradient-text-pink">Binary Goal</span>
+            }
+            else
+            {
+                <div class="flex items-center justify-center w-10 h-10 rounded-full"
+                     style="background: linear-gradient(to right, var(--color-tertiary), var(--color-secondary));">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                <span class="text-xl font-semibold gradient-text">Percentage Goal (@Steps.Count steps)</span>
+            }
+        </div>
+        <p class="text-sm opacity-60 mt-2">
+            @if (GoalType == GoalType.Binary)
+            {
+                <span>Students will see a checkmark when they complete the goal.</span>
+            }
+            else
+            {
+                <span>Students will see a progress bar that fills as they complete each step.</span>
+            }
+        </p>
+    </div>
+
+    <!-- Steps List (for percentage goals) -->
+    @if (GoalType == GoalType.Percentage && Steps.Count > 0)
+    {
+        <div class="mb-6">
+            <h2 class="text-sm font-medium opacity-75 mb-3">Steps to Complete</h2>
+            <ol class="goal-step-list">
+                @for (int i = 0; i < Steps.Count; i++)
+                {
+                    var stepNumber = i + 1;
+                    <li class="flex items-start gap-3 py-2">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium"
+                              style="background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+                            @stepNumber
+                        </span>
+                        <span class="opacity-90">@Steps[i]</span>
+                    </li>
+                }
+            </ol>
+        </div>
+    }
+
+    <!-- Welcome Message Preview -->
+    <div class="mb-6">
+        <h2 class="text-sm font-medium opacity-75 mb-3">Sample Welcome Message</h2>
+        <div class="welcome-message-preview">
+            <p>@WelcomeMessage</p>
+        </div>
+    </div>
+
+    <!-- Edit Mode -->
+    @if (isEditing)
+    {
+        <div class="mb-6">
+            <h2 class="text-sm font-medium opacity-75 mb-2">Edit Goal Description</h2>
+            <textarea @bind="editedGoalDescription"
+                      class="w-full h-32 resize-none"
+                      maxlength="500"
+                      placeholder="Enter your updated goal description..."
+                      disabled="@IsLoading"></textarea>
+            <div class="flex justify-end mt-1">
+                <span class="text-sm character-counter @(editedGoalDescription?.Length >= 450 ? "near-limit" : "")">
+                    @(editedGoalDescription?.Length ?? 0)/500
+                </span>
+            </div>
+        </div>
+    }
+
+    <!-- Error Message -->
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="mb-6 p-4 rounded-lg" style="border: 1px solid rgba(255, 107, 157, 0.5); background: rgba(255, 107, 157, 0.1);">
+            <p class="text-sm" style="color: var(--color-primary);">@ErrorMessage</p>
+        </div>
+    }
+
+    <!-- Action Buttons -->
+    <div class="flex gap-4">
+        @if (isEditing)
+        {
+            <button class="glow-button flex-1"
+                    @onclick="HandleResubmit"
+                    disabled="@(IsLoading || string.IsNullOrWhiteSpace(editedGoalDescription))">
+                @if (IsLoading)
+                {
+                    <span class="flex items-center justify-center gap-2">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Reinterpreting...
+                    </span>
+                }
+                else
+                {
+                    <span>Resubmit Goal</span>
+                }
+            </button>
+            <button class="reject-button flex-1"
+                    @onclick="CancelEdit"
+                    disabled="@IsLoading">
+                Cancel
+            </button>
+        }
+        else
+        {
+            <button class="glow-button flex-1"
+                    @onclick="HandleAcceptClick"
+                    disabled="@IsLoading">
+                @if (IsLoading)
+                {
+                    <span class="flex items-center justify-center gap-2">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Confirming...
+                    </span>
+                }
+                else
+                {
+                    <span>Accept & Continue</span>
+                }
+            </button>
+            <button class="reject-button flex-1"
+                    @onclick="StartEditing"
+                    disabled="@IsLoading">
+                Edit & Resubmit
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The interpreted goal type (Binary or Percentage).
+    /// </summary>
+    [Parameter]
+    public GoalType GoalType { get; set; }
+
+    /// <summary>
+    /// List of step descriptions for percentage goals.
+    /// </summary>
+    [Parameter]
+    public List<string> Steps { get; set; } = new();
+
+    /// <summary>
+    /// The sample welcome message generated by AI.
+    /// </summary>
+    [Parameter]
+    public string WelcomeMessage { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The name of the group being created.
+    /// </summary>
+    [Parameter]
+    public string GroupName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The original goal description for editing.
+    /// </summary>
+    [Parameter]
+    public string GoalDescription { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Callback when the teacher accepts the interpretation.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnAccept { get; set; }
+
+    /// <summary>
+    /// Callback when the teacher rejects with an updated goal description.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnReject { get; set; }
+
+    /// <summary>
+    /// Whether an async operation is in progress (passed from parent).
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Error message to display (passed from parent).
+    /// </summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Whether the component is in edit mode.
+    /// </summary>
+    private bool isEditing = false;
+
+    /// <summary>
+    /// The edited goal description (in edit mode).
+    /// </summary>
+    private string editedGoalDescription = string.Empty;
+
+    /// <summary>
+    /// Initializes the edited goal description when parameters are set.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (!isEditing)
+        {
+            editedGoalDescription = GoalDescription;
+        }
+    }
+
+    /// <summary>
+    /// Handles the accept button click.
+    /// </summary>
+    private async Task HandleAcceptClick()
+    {
+        await OnAccept.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Enters edit mode for goal description.
+    /// </summary>
+    private void StartEditing()
+    {
+        editedGoalDescription = GoalDescription;
+        isEditing = true;
+    }
+
+    /// <summary>
+    /// Cancels edit mode without changes.
+    /// </summary>
+    private void CancelEdit()
+    {
+        isEditing = false;
+        editedGoalDescription = GoalDescription;
+    }
+
+    /// <summary>
+    /// Submits the edited goal description for reinterpretation.
+    /// </summary>
+    private async Task HandleResubmit()
+    {
+        if (!string.IsNullOrWhiteSpace(editedGoalDescription))
+        {
+            isEditing = false;
+            await OnReject.InvokeAsync(editedGoalDescription);
+        }
+    }
+}

@@ -1,0 +1,96 @@
+@page "/Error"
+@page "/Error/{StatusCode:int}"
+@attribute [AllowAnonymous]
+@inject NavigationManager NavigationManager
+
+<PageTitle>Error - Progress Path</PageTitle>
+
+@*
+    Error Page
+    Displays error information for unhandled exceptions and HTTP status code errors.
+    Uses the application's theme styling for consistent appearance.
+*@
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="glow-container p-8 text-center error-page-container" style="max-width: 32rem; border-color: rgba(255, 107, 157, 0.5);">
+        <!-- Error Icon -->
+        <div class="error-page-icon mb-6 mx-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" x2="12" y1="8" y2="12"/>
+                <line x1="12" x2="12.01" y1="16" y2="16"/>
+            </svg>
+        </div>
+
+        <!-- Error Title -->
+        <h1 class="text-3xl font-bold mb-4 gradient-text-pink">
+            @GetErrorTitle()
+        </h1>
+
+        <!-- Error Message -->
+        <p class="text-lg opacity-75 mb-8">
+            @GetErrorMessage()
+        </p>
+
+        <!-- Action Button -->
+        <button class="glow-button inline-flex items-center gap-2 px-6 py-3" @onclick="GoHome">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Return Home
+        </button>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// HTTP status code parameter from the route (e.g., 404, 500).
+    /// </summary>
+    [Parameter]
+    public int? StatusCode { get; set; }
+
+    /// <summary>
+    /// Returns the appropriate error title based on the status code.
+    /// </summary>
+    private string GetErrorTitle()
+    {
+        return StatusCode switch
+        {
+            400 => "Bad Request",
+            401 => "Unauthorized",
+            403 => "Forbidden",
+            404 => "Page Not Found",
+            500 => "Server Error",
+            502 => "Bad Gateway",
+            503 => "Service Unavailable",
+            _ => "Oops! Something went wrong"
+        };
+    }
+
+    /// <summary>
+    /// Returns the appropriate error message based on the status code.
+    /// </summary>
+    private string GetErrorMessage()
+    {
+        return StatusCode switch
+        {
+            400 => "The request could not be understood by the server.",
+            401 => "You need to sign in to access this page.",
+            403 => "You don't have permission to access this resource.",
+            404 => "The page you're looking for doesn't exist or has been moved.",
+            500 => "An unexpected error occurred on the server. Please try again later.",
+            502 => "The server received an invalid response from an upstream server.",
+            503 => "The service is temporarily unavailable. Please try again later.",
+            _ => "An unexpected error occurred. Please try again or contact support if the problem persists."
+        };
+    }
+
+    /// <summary>
+    /// Navigates back to the home page.
+    /// </summary>
+    private void GoHome()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

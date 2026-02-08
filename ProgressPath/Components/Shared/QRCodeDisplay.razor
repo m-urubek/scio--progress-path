@@ -1,0 +1,178 @@
+@inject IQRCodeService QRCodeService
+@inject IJSRuntime JSRuntime
+
+<div class="glow-container p-8 text-center">
+    <!-- Success Header -->
+    <div class="mb-6">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4"
+             style="background: linear-gradient(to right, var(--color-tertiary), var(--color-secondary));">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold gradient-text">
+            Group Created Successfully!
+        </h1>
+        <p class="text-lg opacity-75 mt-2">
+            Share this QR code with your students to let them join.
+        </p>
+    </div>
+
+    <!-- QR Code Display -->
+    <div class="inner-card inline-block p-6 mb-6">
+        @if (!string.IsNullOrEmpty(qrCodeDataUri))
+        {
+            <img src="@qrCodeDataUri"
+                 alt="QR Code to join group"
+                 class="w-64 h-64 mx-auto rounded-lg" />
+        }
+        else
+        {
+            <div class="w-64 h-64 flex items-center justify-center opacity-50">
+                <span>Generating QR code...</span>
+            </div>
+        }
+    </div>
+
+    <!-- Join Code Display -->
+    <div class="mb-6">
+        <p class="text-sm opacity-75 mb-2">Join Code</p>
+        <p class="text-2xl font-mono font-bold tracking-widest" style="color: var(--color-tertiary);">
+            @JoinCode
+        </p>
+    </div>
+
+    <!-- Join URL Display -->
+    <div class="mb-6">
+        <p class="text-sm opacity-75 mb-2">Join URL</p>
+        <div class="inner-card p-4">
+            <p class="font-mono text-sm break-all" style="color: var(--color-tertiary);">
+                @JoinUrl
+            </p>
+        </div>
+    </div>
+
+    <!-- Copy Button -->
+    <div class="relative inline-block">
+        <button class="glow-button"
+                @onclick="CopyToClipboard"
+                disabled="@isCopying">
+            @if (copySuccess)
+            {
+                <span class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                </span>
+            }
+            else
+            {
+                <span class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy Link
+                </span>
+            }
+        </button>
+
+        <!-- Copy Error Message -->
+        @if (copyError)
+        {
+            <p class="text-sm mt-2 opacity-75" style="color: var(--color-primary);">
+                Failed to copy. Please copy the URL manually.
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The full join URL to encode in the QR code and display.
+    /// </summary>
+    [Parameter]
+    public string JoinUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The short join code for display.
+    /// </summary>
+    [Parameter]
+    public string JoinCode { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The base64 data URI for the generated QR code image.
+    /// </summary>
+    private string? qrCodeDataUri;
+
+    /// <summary>
+    /// Indicates whether the link was successfully copied.
+    /// </summary>
+    private bool copySuccess = false;
+
+    /// <summary>
+    /// Indicates whether a copy operation failed.
+    /// </summary>
+    private bool copyError = false;
+
+    /// <summary>
+    /// Indicates whether a copy operation is in progress.
+    /// </summary>
+    private bool isCopying = false;
+
+    /// <summary>
+    /// Generates the QR code on initialization.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(JoinUrl))
+        {
+            qrCodeDataUri = QRCodeService.GenerateQRCodeBase64(JoinUrl);
+        }
+    }
+
+    /// <summary>
+    /// Regenerates QR code if the URL changes.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(JoinUrl) && qrCodeDataUri == null)
+        {
+            qrCodeDataUri = QRCodeService.GenerateQRCodeBase64(JoinUrl);
+        }
+    }
+
+    /// <summary>
+    /// Copies the join URL to the clipboard using JS interop.
+    /// Shows success feedback for 2 seconds.
+    /// </summary>
+    private async Task CopyToClipboard()
+    {
+        if (isCopying) return;
+
+        isCopying = true;
+        copyError = false;
+        copySuccess = false;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", JoinUrl);
+            copySuccess = true;
+            StateHasChanged();
+
+            // Reset success state after 2 seconds
+            await Task.Delay(2000);
+            copySuccess = false;
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // Clipboard API may fail in certain contexts (e.g., non-HTTPS, no focus)
+            copyError = true;
+        }
+        finally
+        {
+            isCopying = false;
+        }
+    }
+}

@@ -1,0 +1,96 @@
+@using ProgressPath.Models
+
+<div class="inner-card cursor-pointer" @onclick="OnClick">
+    <!-- Group Name -->
+    <h3 class="text-lg font-semibold gradient-text-pink mb-2">
+        @Group.Name
+    </h3>
+
+    <!-- Creation Date -->
+    <p class="text-sm opacity-75 mb-2">
+        Created: @Group.CreatedAt.ToString("MMM dd, yyyy")
+    </p>
+
+    <!-- Active Students Count -->
+    <p class="text-sm mb-2">
+        Active Students: @ActiveStudentCount
+    </p>
+
+    <!-- Confirmation Status -->
+    @if (!Group.IsConfirmed)
+    {
+        <p class="text-sm mb-2" style="color: var(--color-primary);">
+            <span style="opacity: 0.9;">Awaiting Confirmation</span>
+        </p>
+    }
+
+    <!-- Overall Progress -->
+    <div class="flex items-center gap-4">
+        <div class="flex-1 h-2 rounded-full" style="background: rgba(192, 132, 252, 0.2);">
+            <div class="h-full rounded-full"
+                 style="width: @(OverallProgress)%; background: linear-gradient(to right, var(--color-primary), var(--color-secondary)); transition: width 0.3s ease;">
+            </div>
+        </div>
+        <span class="text-sm font-medium" style="min-width: 40px;">
+            @OverallProgress%
+        </span>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The group to display.
+    /// </summary>
+    [Parameter]
+    public Group Group { get; set; } = null!;
+
+    /// <summary>
+    /// Callback invoked when the card is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+
+    /// <summary>
+    /// Gets the count of active (non-completed) students in the group.
+    /// </summary>
+    private int ActiveStudentCount => Group.StudentSessions?.Count(s => !s.IsCompleted) ?? 0;
+
+    /// <summary>
+    /// Calculates the overall progress percentage for the group.
+    /// For groups with students: calculates average progress across all student sessions.
+    /// For groups without students: returns 0%.
+    /// </summary>
+    private int OverallProgress
+    {
+        get
+        {
+            var sessions = Group.StudentSessions;
+            if (sessions == null || !sessions.Any())
+            {
+                return 0;
+            }
+
+            // Calculate average progress across all students
+            double totalProgress = 0;
+            foreach (var session in sessions)
+            {
+                if (Group.GoalType == GoalType.Binary)
+                {
+                    // Binary goals: 0 or 100%
+                    totalProgress += session.IsCompleted ? 100 : 0;
+                }
+                else
+                {
+                    // Percentage goals: (CurrentProgress / TotalSteps) * 100
+                    var totalSteps = Group.TotalSteps ?? 1;
+                    totalProgress += totalSteps > 0
+                        ? (double)session.CurrentProgress / totalSteps * 100
+                        : 0;
+                }
+            }
+
+            // Return average, rounded to whole integer (REQ-GOAL-012)
+            return (int)Math.Round(totalProgress / sessions.Count);
+        }
+    }
+}

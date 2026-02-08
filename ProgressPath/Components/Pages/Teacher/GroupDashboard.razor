@@ -1,0 +1,660 @@
+@page "/groups/{GroupId:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.SignalR.Client
+@using ProgressPath.Models
+@using ProgressPath.Data
+@using Microsoft.EntityFrameworkCore
+@implements IAsyncDisposable
+@inject IGroupService GroupService
+@inject IStudentSessionService StudentSessionService
+@inject IAlertService AlertService
+@inject IChatService ChatService
+@inject IAuthenticationService AuthService
+@inject IQRCodeService QRCodeService
+@inject IHubNotificationService HubNotificationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+@inject IDbContextFactory<ProgressPathDbContext> DbContextFactory
+@inject ILogger<GroupDashboard> Logger
+
+<PageTitle>@(group?.Name ?? "Group Dashboard") - Progress Path</PageTitle>
+
+<div class="container mx-auto py-8 px-4">
+    <!-- Header Section -->
+    <div class="mb-6">
+        <a href="/groups" class="text-sm opacity-75 hover:opacity-100 transition">
+            ← Back to Groups
+        </a>
+    </div>
+
+    <!-- Loading State -->
+    @if (isLoading)
+    {
+        <div class="glow-container p-8 text-center">
+            <div class="flex items-center justify-center gap-3">
+                <svg class="animate-spin h-6 w-6" style="color: var(--color-tertiary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-lg opacity-75">Loading dashboard...</p>
+            </div>
+        </div>
+    }
+    <!-- Error State -->
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
+            <p class="text-lg" style="color: var(--color-primary);">@errorMessage</p>
+            <button class="glow-button mt-4" @onclick="NavigateToGroups">
+                Return to Groups
+            </button>
+        </div>
+    }
+    <!-- Dashboard Content -->
+    else if (group != null)
+    {
+        <!-- Group Header -->
+        <div class="glow-container p-6 mb-6">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold gradient-text mb-2">
+                        @group.Name
+                    </h1>
+                    <p class="text-sm opacity-75">
+                        @(sessions?.Count() ?? 0) students • Goal: @group.GoalDescription
+                    </p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- QR Code Toggle Button -->
+                    <button class="glow-button" @onclick="ToggleQRCode">
+                        @if (showQRCode)
+                        {
+                            <span>Hide QR Code</span>
+                        }
+                        else
+                        {
+                            <span>Show QR Code</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            <!-- QR Code Display (Collapsible) -->
+            @if (showQRCode && !string.IsNullOrEmpty(qrCodeDataUri))
+            {
+                <div class="mt-6 pt-6" style="border-top: 1px solid rgba(34, 211, 216, 0.2);">
+                    <div class="flex flex-col md:flex-row items-center gap-6">
+                        <div class="inner-card p-4">
+                            <img src="@qrCodeDataUri" alt="QR Code to join group" class="w-48 h-48 rounded-lg" />
+                        </div>
+                        <div class="text-center md:text-left">
+                            <p class="text-sm opacity-75 mb-1">Join Code</p>
+                            <p class="text-2xl font-mono font-bold tracking-widest" style="color: var(--color-tertiary);">
+                                @group.JoinCode
+                            </p>
+                            <p class="text-sm opacity-75 mt-3 mb-1">Join URL</p>
+                            <p class="text-sm font-mono" style="color: var(--color-tertiary);">
+                                @joinUrl
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Student List Section -->
+        <div class="glow-container p-6">
+            <h2 class="text-xl font-semibold gradient-text-pink mb-4">
+                Students
+            </h2>
+
+            @if (sessions == null || !sessions.Any())
+            {
+                <div class="inner-card text-center py-8">
+                    <p class="opacity-75">No students have joined yet.</p>
+                    <p class="text-sm opacity-50 mt-2">Share the QR code above to invite students.</p>
+                </div>
+            }
+            else
+            {
+                <!-- Student List Container (REQ-DASH-008: optimized for ~30 students) -->
+                <div class="student-list-container space-y-2">
+                    @foreach (var session in GetSortedSessions())
+                    {
+                        var alert = GetSessionAlert(session.Id);
+                        var isExpanded = expandedStudents.Contains(session.Id);
+
+                        <StudentRow @key="session.Id"
+                                    Session="session"
+                                    GoalType="group.GoalType"
+                                    TotalSteps="group.TotalSteps"
+                                    ActiveAlert="alert"
+                                    IsExpanded="isExpanded"
+                                    OnToggleExpansion="() => ToggleExpansion(session.Id)"
+                                    OnResolveAlert="HandleResolveAlert" />
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Toast Container for Notifications -->
+<ToastContainer Toasts="toasts" OnDismiss="RemoveToast" />
+
+@code {
+    /// <summary>
+    /// Route parameter: the group ID from the URL.
+    /// </summary>
+    [Parameter]
+    public int GroupId { get; set; }
+
+    // Internal state
+    private Group? group;
+    private IEnumerable<StudentSession>? sessions;
+    private IEnumerable<HelpAlert>? unresolvedAlerts;
+    private Dictionary<int, HelpAlert?> sessionAlerts = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+    private User? currentUser;
+    private string? qrCodeDataUri;
+    private string? joinUrl;
+    private bool showQRCode = false;
+    private HashSet<int> expandedStudents = new();
+    private List<ToastMessage> toasts = new();
+
+    // SignalR connection
+    private HubConnection? _hubConnection;
+    private CancellationTokenSource? _disposalTokenSource;
+
+    /// <summary>
+    /// Loads the group data and initializes the dashboard.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        _disposalTokenSource = new CancellationTokenSource();
+
+        try
+        {
+            // Get current user
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUser = await AuthService.GetCurrentUserAsync(authState.User);
+
+            if (currentUser == null)
+            {
+                errorMessage = "Unable to load user information. Please sign in again.";
+                isLoading = false;
+                return;
+            }
+
+            // Load group with authorization check
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            group = await dbContext.Groups
+                .Include(g => g.StudentSessions)
+                    .ThenInclude(s => s.HelpAlerts)
+                .FirstOrDefaultAsync(g => g.Id == GroupId && g.TeacherId == currentUser.Id);
+
+            if (group == null)
+            {
+                errorMessage = "Group not found or you don't have permission to view it.";
+                isLoading = false;
+                return;
+            }
+
+            // Store sessions reference
+            sessions = group.StudentSessions.ToList();
+
+            // Load unresolved alerts
+            unresolvedAlerts = await AlertService.GetUnresolvedAlertsAsync(GroupId);
+
+            // Build session alerts dictionary
+            BuildSessionAlertsMap();
+
+            // Generate QR code
+            var baseUrl = Configuration["ApplicationBaseUrl"] ?? NavigationManager.BaseUri.TrimEnd('/');
+            joinUrl = $"{baseUrl}/join/{group.JoinCode}";
+            qrCodeDataUri = QRCodeService.GenerateQRCodeBase64(joinUrl);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading group dashboard for GroupId {GroupId}", GroupId);
+            errorMessage = "An error occurred while loading the dashboard.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Initializes the SignalR connection after the first render.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && group != null)
+        {
+            try
+            {
+                // Create SignalR hub connection
+                _hubConnection = new HubConnectionBuilder()
+                    .WithUrl(NavigationManager.ToAbsoluteUri("/progresshub"))
+                    .WithAutomaticReconnect()
+                    .Build();
+
+                // Register event handlers
+                RegisterHubEventHandlers();
+
+                // Start the connection
+                await _hubConnection.StartAsync(_disposalTokenSource?.Token ?? CancellationToken.None);
+
+                // Join the group channel
+                await _hubConnection.InvokeAsync("JoinGroupChannel", group.Id.ToString());
+
+                Logger.LogInformation("Connected to SignalR hub for group {GroupId}", group.Id);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to connect to SignalR hub");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Registers all SignalR event handlers.
+    /// </summary>
+    private void RegisterHubEventHandlers()
+    {
+        if (_hubConnection == null) return;
+
+        // ReceiveProgress handler - updates student progress in real-time
+        _hubConnection.On<dynamic>("ReceiveProgress", (payload) =>
+        {
+            try
+            {
+                int sessionId = (int)payload.SessionId;
+                int progress = (int)payload.Progress;
+                bool isCompleted = (bool)payload.IsCompleted;
+
+                var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+                if (session != null)
+                {
+                    session.CurrentProgress = progress;
+                    session.IsCompleted = isCompleted;
+                    InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling ReceiveProgress event");
+            }
+        });
+
+        // ReceiveAlert handler - adds new alerts to the dashboard
+        _hubConnection.On<dynamic>("ReceiveAlert", (payload) =>
+        {
+            try
+            {
+                int alertId = (int)payload.Id;
+                int sessionId = (int)payload.SessionId;
+                string alertTypeStr = (string)payload.AlertType;
+                string nickname = (string)payload.Nickname;
+                DateTime createdAt = payload.CreatedAt;
+
+                // Parse alert type
+                if (!Enum.TryParse<AlertType>(alertTypeStr, out var alertType))
+                {
+                    Logger.LogWarning("Unknown alert type: {AlertType}", alertTypeStr);
+                    return;
+                }
+
+                // Create alert object
+                var alert = new HelpAlert
+                {
+                    Id = alertId,
+                    StudentSessionId = sessionId,
+                    AlertType = alertType,
+                    CreatedAt = createdAt,
+                    IsResolved = false
+                };
+
+                // Update session alerts map
+                sessionAlerts[sessionId] = alert;
+
+                // Update session's HasActiveAlert
+                var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+                if (session != null)
+                {
+                    session.HasActiveAlert = true;
+                    session.AlertType = alertType;
+                }
+
+                // Add toast notification (REQ-DASH-013)
+                var alertTypeDisplay = alertType == AlertType.Inactivity ? "Inactivity" : "Off-topic";
+                toasts.Add(new ToastMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Message = $"New Alert: {nickname} - {alertTypeDisplay}",
+                    Type = "alert",
+                    Nickname = nickname,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling ReceiveAlert event");
+            }
+        });
+
+        // AlertResolved handler - removes resolved alerts from display
+        _hubConnection.On<int>("AlertResolved", (alertId) =>
+        {
+            try
+            {
+                // Find and remove alert from sessionAlerts
+                var sessionId = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == alertId).Key;
+                if (sessionId != 0)
+                {
+                    sessionAlerts[sessionId] = null;
+
+                    var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+                    if (session != null)
+                    {
+                        session.HasActiveAlert = false;
+                        session.AlertType = null;
+                    }
+                }
+
+                InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling AlertResolved event");
+            }
+        });
+
+        // StudentResumedActivity handler - shows toast notification (REQ-DASH-012, REQ-AI-017)
+        _hubConnection.On<string>("StudentResumedActivity", (nickname) =>
+        {
+            try
+            {
+                toasts.Add(new ToastMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Message = $"{nickname} has resumed activity",
+                    Type = "resumed",
+                    Nickname = nickname,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling StudentResumedActivity event");
+            }
+        });
+
+        // StudentJoined handler - adds new student to the list
+        _hubConnection.On<dynamic>("StudentJoined", (payload) =>
+        {
+            try
+            {
+                int id = (int)payload.Id;
+                string nickname = (string)payload.Nickname;
+                int currentProgress = (int)payload.CurrentProgress;
+                bool isCompleted = (bool)payload.IsCompleted;
+                DateTime joinedAt = payload.JoinedAt;
+
+                // Check if session already exists
+                if (sessions?.Any(s => s.Id == id) == true)
+                {
+                    return;
+                }
+
+                var newSession = new StudentSession
+                {
+                    Id = id,
+                    Nickname = nickname,
+                    CurrentProgress = currentProgress,
+                    IsCompleted = isCompleted,
+                    JoinedAt = joinedAt,
+                    GroupId = GroupId
+                };
+
+                // Add to sessions list
+                var sessionsList = sessions?.ToList() ?? new List<StudentSession>();
+                sessionsList.Add(newSession);
+                sessions = sessionsList;
+
+                InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling StudentJoined event");
+            }
+        });
+
+        // Handle reconnecting state (REQ-RT-002)
+        _hubConnection.Reconnecting += (exception) =>
+        {
+            Logger.LogWarning(
+                exception,
+                "SignalR connection lost for group dashboard {GroupId}, attempting to reconnect...",
+                GroupId);
+
+            return Task.CompletedTask;
+        };
+
+        // Handle reconnection - re-join channel and refresh data
+        _hubConnection.Reconnected += async (connectionId) =>
+        {
+            Logger.LogInformation(
+                "SignalR reconnected for group dashboard {GroupId}, connection {ConnectionId}",
+                GroupId,
+                connectionId);
+
+            try
+            {
+                // Re-join the group channel
+                await _hubConnection.InvokeAsync("JoinGroupChannel", group!.Id.ToString());
+
+                // Refresh sessions and alerts from database
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+
+                // Reload sessions
+                var refreshedSessions = await dbContext.StudentSessions
+                    .Where(s => s.GroupId == GroupId)
+                    .AsNoTracking()
+                    .ToListAsync();
+                sessions = refreshedSessions;
+
+                // Reload unresolved alerts
+                unresolvedAlerts = await AlertService.GetUnresolvedAlertsAsync(GroupId);
+
+                // Rebuild session alerts map
+                BuildSessionAlertsMap();
+
+                // Update session HasActiveAlert flags
+                foreach (var session in sessions)
+                {
+                    var alert = GetSessionAlert(session.Id);
+                    session.HasActiveAlert = alert != null;
+                    session.AlertType = alert?.AlertType;
+                }
+
+                await InvokeAsync(StateHasChanged);
+
+                Logger.LogInformation(
+                    "State restored after reconnection for group {GroupId}: {SessionCount} sessions, {AlertCount} alerts",
+                    GroupId,
+                    sessions.Count(),
+                    unresolvedAlerts?.Count() ?? 0);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error restoring state after reconnection for group {GroupId}", GroupId);
+            }
+        };
+
+        // Handle permanent connection loss
+        _hubConnection.Closed += (exception) =>
+        {
+            if (exception != null)
+            {
+                Logger.LogError(
+                    exception,
+                    "SignalR connection permanently closed for group dashboard {GroupId}",
+                    GroupId);
+            }
+            else
+            {
+                Logger.LogInformation(
+                    "SignalR connection closed for group dashboard {GroupId}",
+                    GroupId);
+            }
+
+            return Task.CompletedTask;
+        };
+    }
+
+    /// <summary>
+    /// Builds the dictionary mapping session IDs to their active alerts.
+    /// </summary>
+    private void BuildSessionAlertsMap()
+    {
+        sessionAlerts.Clear();
+        if (unresolvedAlerts == null) return;
+
+        foreach (var alert in unresolvedAlerts)
+        {
+            // Store the most recent alert per session
+            if (!sessionAlerts.ContainsKey(alert.StudentSessionId) ||
+                sessionAlerts[alert.StudentSessionId]?.CreatedAt < alert.CreatedAt)
+            {
+                sessionAlerts[alert.StudentSessionId] = alert;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the active alert for a session, if any.
+    /// </summary>
+    private HelpAlert? GetSessionAlert(int sessionId)
+    {
+        return sessionAlerts.TryGetValue(sessionId, out var alert) ? alert : null;
+    }
+
+    /// <summary>
+    /// Gets sessions sorted with alerts at the top (REQ-DASH-009).
+    /// </summary>
+    private IEnumerable<StudentSession> GetSortedSessions()
+    {
+        if (sessions == null) return Enumerable.Empty<StudentSession>();
+
+        return sessions
+            .OrderByDescending(s => s.HasActiveAlert)
+            .ThenByDescending(s => s.JoinedAt);
+    }
+
+    /// <summary>
+    /// Toggles the expansion state of a student row.
+    /// </summary>
+    private void ToggleExpansion(int sessionId)
+    {
+        if (expandedStudents.Contains(sessionId))
+        {
+            expandedStudents.Remove(sessionId);
+        }
+        else
+        {
+            expandedStudents.Add(sessionId);
+        }
+    }
+
+    /// <summary>
+    /// Handles resolving an alert (REQ-DASH-007).
+    /// </summary>
+    private async Task HandleResolveAlert(int alertId)
+    {
+        try
+        {
+            var alert = unresolvedAlerts?.FirstOrDefault(a => a.Id == alertId);
+            if (alert == null) return;
+
+            int groupId = GroupId;
+
+            // Resolve the alert
+            await AlertService.ResolveAlertAsync(alertId);
+
+            // Notify via SignalR
+            await HubNotificationService.NotifyAlertResolvedAsync(groupId, alertId);
+
+            // Update local state
+            sessionAlerts[alert.StudentSessionId] = null;
+
+            var session = sessions?.FirstOrDefault(s => s.Id == alert.StudentSessionId);
+            if (session != null)
+            {
+                session.HasActiveAlert = false;
+                session.AlertType = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error resolving alert {AlertId}", alertId);
+        }
+    }
+
+    /// <summary>
+    /// Removes a toast notification from the list.
+    /// </summary>
+    private void RemoveToast(ToastMessage toast)
+    {
+        toasts.Remove(toast);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Toggles the QR code display.
+    /// </summary>
+    private void ToggleQRCode()
+    {
+        showQRCode = !showQRCode;
+    }
+
+    /// <summary>
+    /// Navigates back to the groups list.
+    /// </summary>
+    private void NavigateToGroups()
+    {
+        NavigationManager.NavigateTo("/groups");
+    }
+
+    /// <summary>
+    /// Disposes the SignalR connection when the component is disposed.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        _disposalTokenSource?.Cancel();
+        _disposalTokenSource?.Dispose();
+
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.InvokeAsync("LeaveChannels");
+                await _hubConnection.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Error disposing SignalR connection");
+            }
+        }
+    }
+}

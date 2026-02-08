@@ -1,0 +1,222 @@
+@page "/groups"
+@attribute [Authorize]
+@using ProgressPath.Models
+@inject IGroupService GroupService
+@inject IAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>My Groups - Progress Path</PageTitle>
+
+<div class="container mx-auto py-8 px-4">
+    <!-- Header Section -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold gradient-text">
+            My Groups
+        </h1>
+        <button class="glow-button" @onclick="NavigateToCreateGroup">
+            Create Group
+        </button>
+    </div>
+
+    @* Loading State *@
+    @if (isLoading)
+    {
+        <div class="glow-container p-8 text-center">
+            <p class="text-lg opacity-75">Loading your groups...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        @* Error State *@
+        <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
+            <p class="text-lg" style="color: var(--color-primary);">@errorMessage</p>
+        </div>
+    }
+    else if (groups == null || !groups.Any())
+    {
+        @* Empty State *@
+        <div class="glow-container p-8 text-center">
+            <h2 class="text-xl font-semibold gradient-text-pink mb-4">
+                You haven't created any groups yet.
+            </h2>
+            <p class="opacity-75 mb-6">
+                Create your first learning group to start tracking student progress in real-time.
+            </p>
+            <button class="glow-button" @onclick="NavigateToCreateGroup">
+                Create Your First Group
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="glow-container p-6">
+            <table class="w-full">
+                <thead>
+                    <tr style="border-bottom: 1px solid rgba(34, 211, 216, 0.2);">
+                        <th class="text-left py-3 px-4 opacity-75 font-medium">Name</th>
+                        <th class="text-left py-3 px-4 opacity-75 font-medium">Created</th>
+                        <th class="text-left py-3 px-4 opacity-75 font-medium">Status</th>
+                        <th class="text-left py-3 px-4 opacity-75 font-medium">Active Students</th>
+                        <th class="text-left py-3 px-4 opacity-75 font-medium">Overall Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var group in groups ?? Enumerable.Empty<Group>())
+                    {
+                        <tr class="cursor-pointer transition"
+                            style="border-bottom: 1px solid rgba(192, 132, 252, 0.1);"
+                            @onclick="() => NavigateToGroup(group.Id)">
+                            <td class="py-4 px-4">
+                                <span class="font-medium">@group.Name</span>
+                            </td>
+                            <td class="py-4 px-4 opacity-75">
+                                @group.CreatedAt.ToString("MMM dd, yyyy")
+                            </td>
+                            <td class="py-4 px-4">
+                                @if (group.IsConfirmed)
+                                {
+                                    <span class="text-sm" style="color: var(--color-tertiary);">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="text-sm" style="color: var(--color-primary);">Awaiting Confirmation</span>
+                                }
+                            </td>
+                            <td class="py-4 px-4">
+                                @GetActiveStudentCount(group)
+                            </td>
+                            <td class="py-4 px-4">
+                                <div class="flex items-center gap-4">
+                                    <div class="flex-1 h-2 rounded-full" style="background: rgba(192, 132, 252, 0.2); max-width: 120px;">
+                                        <div class="h-full rounded-full"
+                                             style="width: @(CalculateOverallProgress(group))%; background: linear-gradient(to right, var(--color-primary), var(--color-secondary)); transition: width 0.3s ease;">
+                                        </div>
+                                    </div>
+                                    <span class="text-sm opacity-75" style="min-width: 40px;">
+                                        @CalculateOverallProgress(group)%
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Collection of groups owned by the current teacher.
+    /// </summary>
+    private IEnumerable<Group>? groups;
+
+    /// <summary>
+    /// Indicates whether groups are currently loading.
+    /// </summary>
+    private bool isLoading = true;
+
+    /// <summary>
+    /// Error message to display if loading fails.
+    /// </summary>
+    private string? errorMessage;
+
+    /// <summary>
+    /// Loads the teacher's groups when the component initializes.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get the current authentication state
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            // Get the current user from claims
+            var user = await AuthService.GetCurrentUserAsync(authState.User);
+
+            if (user == null)
+            {
+                errorMessage = "Unable to load user information. Please try signing in again.";
+                isLoading = false;
+                return;
+            }
+
+            // Load groups for this teacher (REQ-GROUP-003)
+            groups = await GroupService.GetTeacherGroupsAsync(user.Id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while loading your groups: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the group detail page.
+    /// </summary>
+    /// <param name="groupId">ID of the group to view.</param>
+    private void NavigateToGroup(int groupId)
+    {
+        NavigationManager.NavigateTo($"/groups/{groupId}");
+    }
+
+    /// <summary>
+    /// Navigates to the group creation page.
+    /// </summary>
+    private void NavigateToCreateGroup()
+    {
+        NavigationManager.NavigateTo("/groups/create");
+    }
+
+    /// <summary>
+    /// Gets the count of active (non-completed) students in a group.
+    /// </summary>
+    /// <param name="group">The group to count students for.</param>
+    /// <returns>Number of active students.</returns>
+    private int GetActiveStudentCount(Group group)
+    {
+        return group.StudentSessions?.Count(s => !s.IsCompleted) ?? 0;
+    }
+
+    /// <summary>
+    /// Calculates the overall progress percentage for a group.
+    /// For groups with students: calculates average progress across all student sessions.
+    /// For groups without students: returns 0%.
+    /// </summary>
+    /// <param name="group">The group to calculate progress for.</param>
+    /// <returns>Overall progress as a whole percentage (0-100).</returns>
+    private int CalculateOverallProgress(Group group)
+    {
+        var sessions = group.StudentSessions;
+        if (sessions == null || !sessions.Any())
+        {
+            return 0;
+        }
+
+        // Calculate average progress across all students
+        double totalProgress = 0;
+        foreach (var session in sessions)
+        {
+            if (group.GoalType == GoalType.Binary)
+            {
+                // Binary goals: 0 or 100%
+                totalProgress += session.IsCompleted ? 100 : 0;
+            }
+            else
+            {
+                // Percentage goals: (CurrentProgress / TotalSteps) * 100
+                var totalSteps = group.TotalSteps ?? 1;
+                totalProgress += totalSteps > 0
+                    ? (double)session.CurrentProgress / totalSteps * 100
+                    : 0;
+            }
+        }
+
+        // Return average, rounded to whole integer (REQ-GOAL-012)
+        return (int)Math.Round(totalProgress / sessions.Count);
+    }
+}

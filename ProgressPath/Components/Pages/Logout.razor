@@ -1,0 +1,21 @@
+@page "/logout"
+@attribute [Authorize]
+@inject NavigationManager NavigationManager
+
+<PageTitle>Signing Out - Progress Path</PageTitle>
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="glow-container p-8 text-center">
+        <div class="text-xl opacity-75">
+            Signing out...
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Navigate to the logout endpoint with forceLoad to trigger the auth controller
+        NavigationManager.NavigateTo("/api/auth/logout", forceLoad: true);
+    }
+}

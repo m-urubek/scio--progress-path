@@ -1,0 +1,56 @@
+@inject NavigationManager NavigationManager
+
+@*
+    NavMenu Component
+    A reusable navigation menu component that displays different links
+    based on authentication state.
+
+    - Authenticated users: 'My Groups' link, user display name, sign out
+    - Unauthenticated users: 'Sign In' link
+*@
+
+<nav class="flex items-center gap-4">
+    <AuthorizeView>
+        <Authorized>
+            <!-- Navigation Links for Authenticated Users -->
+            <a href="/groups" class="nav-link text-sm @(IsActivePath("/groups") ? "active" : "")">
+                My Groups
+            </a>
+
+            <!-- User Info -->
+            <div class="flex items-center gap-3">
+                <span class="text-sm opacity-75">
+                    @context.User.Identity?.Name
+                </span>
+                <a href="/logout" class="nav-link text-sm">
+                    Sign Out
+                </a>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <a href="/login" class="nav-link text-sm @(IsActivePath("/login") ? "active" : "")">
+                Sign In
+            </a>
+        </NotAuthorized>
+    </AuthorizeView>
+</nav>
+
+@code {
+    /// <summary>
+    /// Determines if the given path is the active route or a parent of the current route.
+    /// </summary>
+    /// <param name="path">The path to check against the current URI.</param>
+    /// <returns>True if the path is active (exact match or parent path).</returns>
+    private bool IsActivePath(string path)
+    {
+        var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+
+        // Ensure we're comparing paths without leading slashes
+        var normalizedCurrentPath = "/" + currentPath.TrimStart('/');
+        var normalizedPath = path.TrimEnd('/');
+
+        // Exact match or starts with path (for nested routes like /groups/*)
+        return normalizedCurrentPath.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase) ||
+               normalizedCurrentPath.StartsWith(normalizedPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+}

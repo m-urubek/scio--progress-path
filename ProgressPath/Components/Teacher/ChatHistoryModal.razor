@@ -1,0 +1,275 @@
+@using ProgressPath.Models
+@inject IChatService ChatService
+@inject ILogger<ChatHistoryModal> Logger
+
+@* ChatHistoryModal.razor - Displays full chat history for a student session.
+   Can be used as a modal overlay or embedded as the main page content.
+   REQ-DASH-014 through REQ-DASH-017 *@
+
+@if (IsVisible)
+{
+    @* Modal overlay backdrop (only shown when used as modal, not embedded) *@
+    @if (!IsEmbedded)
+    {
+        <div class="modal-overlay" @onclick="HandleClose"></div>
+    }
+
+    @* Modal panel - slides in from right when modal, static when embedded *@
+    <div class="@GetContainerClasses()">
+        @* Modal Header *@
+        <div class="p-4 md:p-6" style="border-bottom: 1px solid rgba(34, 211, 216, 0.2);">
+            <div class="flex items-center justify-between gap-4">
+                @* Student Info *@
+                <div class="flex items-center gap-3 min-w-0">
+                    @* Student Avatar Placeholder *@
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                         style="background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+                        <span class="text-white font-semibold">
+                            @(string.IsNullOrEmpty(Nickname) ? "?" : Nickname[0].ToString().ToUpper())
+                        </span>
+                    </div>
+
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-semibold gradient-text truncate">
+                            @Nickname
+                        </h2>
+                        <p class="text-xs opacity-50">Chat History</p>
+                    </div>
+                </div>
+
+                @* Progress Indicator & Close Button *@
+                <div class="flex items-center gap-4 flex-shrink-0">
+                    @* Progress Display *@
+                    @if (GoalType == GoalType.Binary)
+                    {
+                        @if (IsCompleted)
+                        {
+                            <span class="text-sm font-medium flex items-center gap-1" style="color: var(--color-tertiary);">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Completed
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-sm opacity-75">In Progress</span>
+                        }
+                    }
+                    else
+                    {
+                        <div class="flex items-center gap-2">
+                            <div class="w-16 h-1.5 rounded-full" style="background: rgba(192, 132, 252, 0.2);">
+                                <div class="h-full rounded-full"
+                                     style="width: @(CalculatePercentage())%; background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+                                </div>
+                            </div>
+                            <span class="text-xs font-medium">@(CalculatePercentage())%</span>
+                        </div>
+                    }
+
+                    @* Close Button *@
+                    @if (!IsEmbedded)
+                    {
+                        <button class="modal-close-button" @onclick="HandleClose" title="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* Chat Messages Container *@
+        <div class="chat-messages-container flex-1 overflow-y-auto p-4 md:p-6">
+            @if (isLoading)
+            {
+                @* Loading State *@
+                <div class="flex flex-col items-center justify-center py-12">
+                    <svg class="animate-spin h-8 w-8 mb-4" style="color: var(--color-tertiary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-sm opacity-75">Loading chat history...</p>
+                </div>
+            }
+            else if (chatMessages == null || !chatMessages.Any())
+            {
+                @* Empty State *@
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <p class="text-sm opacity-50">No messages yet.</p>
+                    <p class="text-xs opacity-30 mt-1">Messages will appear here once the student starts chatting.</p>
+                </div>
+            }
+            else
+            {
+                @* Message List (REQ-CHAT-005: chronological order with timestamps) *@
+                <div class="space-y-3">
+                    @foreach (var message in chatMessages)
+                    {
+                        <MessageDisplay @key="message.Id"
+                                       Message="message"
+                                       ShowProgressIndicator="true"
+                                       ShowTimestamp="true" />
+                    }
+                </div>
+
+                @* Message Count Summary *@
+                <div class="mt-6 pt-4 text-center" style="border-top: 1px solid rgba(192, 132, 252, 0.15);">
+                    <p class="text-xs opacity-50">
+                        @chatMessages.Count() messages • @chatMessages.Count(m => m.ContributesToProgress) contributed to progress
+                    </p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The student session ID to load messages for.
+    /// </summary>
+    [Parameter]
+    public int SessionId { get; set; }
+
+    /// <summary>
+    /// The student's nickname for display.
+    /// </summary>
+    [Parameter]
+    public string Nickname { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The group ID (for navigation context).
+    /// </summary>
+    [Parameter]
+    public int GroupId { get; set; }
+
+    /// <summary>
+    /// The goal type for this group (binary or percentage).
+    /// </summary>
+    [Parameter]
+    public GoalType GoalType { get; set; }
+
+    /// <summary>
+    /// Total steps for percentage goals.
+    /// </summary>
+    [Parameter]
+    public int? TotalSteps { get; set; }
+
+    /// <summary>
+    /// Current progress (steps completed).
+    /// </summary>
+    [Parameter]
+    public int CurrentProgress { get; set; }
+
+    /// <summary>
+    /// Whether the student has completed the goal.
+    /// </summary>
+    [Parameter]
+    public bool IsCompleted { get; set; }
+
+    /// <summary>
+    /// Whether the modal is visible.
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; } = true;
+
+    /// <summary>
+    /// Whether this is rendered embedded (as page content) vs as a modal overlay.
+    /// </summary>
+    [Parameter]
+    public bool IsEmbedded { get; set; } = false;
+
+    /// <summary>
+    /// Callback when the modal should be closed.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private IEnumerable<ChatMessage>? chatMessages;
+    private bool isLoading = true;
+
+    /// <summary>
+    /// Loads the chat history when parameters change.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && SessionId > 0)
+        {
+            await LoadChatHistory();
+        }
+    }
+
+    /// <summary>
+    /// Loads the full chat history from the ChatService.
+    /// </summary>
+    private async Task LoadChatHistory()
+    {
+        isLoading = true;
+
+        try
+        {
+            chatMessages = await ChatService.GetChatHistoryAsync(SessionId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load chat history for session {SessionId}", SessionId);
+            chatMessages = Enumerable.Empty<ChatMessage>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Calculates the progress percentage (REQ-GOAL-012).
+    /// </summary>
+    private int CalculatePercentage()
+    {
+        if (GoalType == GoalType.Binary)
+        {
+            return IsCompleted ? 100 : 0;
+        }
+
+        var totalSteps = TotalSteps ?? 1;
+        if (totalSteps <= 0) return 0;
+
+        var percentage = (int)Math.Round(CurrentProgress * 100.0 / totalSteps);
+
+        // Ensure bounds
+        if (percentage > 100) percentage = 100;
+        if (percentage < 0) percentage = 0;
+
+        return percentage;
+    }
+
+    /// <summary>
+    /// Gets the container CSS classes based on embedded state.
+    /// </summary>
+    private string GetContainerClasses()
+    {
+        if (IsEmbedded)
+        {
+            // Embedded mode: static container, glow styling
+            return "glow-container flex flex-col";
+        }
+        else
+        {
+            // Modal mode: fixed position, slide-in animation
+            return "chat-history-modal fixed inset-y-0 right-0 w-full md:w-2/3 lg:w-1/2 z-50 flex flex-col";
+        }
+    }
+
+    /// <summary>
+    /// Handles the close button click.
+    /// </summary>
+    private async Task HandleClose()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
