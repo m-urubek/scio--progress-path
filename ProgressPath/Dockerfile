@@ -16,7 +16,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS development
 WORKDIR /src
 
-# Install Node.js for Tailwind CSS building
+# Install Node.js for TypeScript compilation and Tailwind CSS building
 RUN apt-get update && apt-get install -y curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -30,10 +30,16 @@ ENV DOTNET_USE_POLLING_FILE_WATCHER=1
 # Auto-restart on changes that require full restart
 ENV DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
 
+# Copy package.json and install npm dependencies for Linux
+# This is done here so node_modules is built for the container's platform
+COPY ProgressPath/package.json ProgressPath/tsconfig.json ./
+RUN npm install
+
 # Expose development port
 EXPOSE 5000
 
 # Source code is mounted via docker-compose volume
+# node_modules is preserved via anonymous volume in docker-compose.yml
 # dotnet watch command is specified in docker-compose.yml
 
 # =============================================================================
@@ -42,7 +48,7 @@ EXPOSE 5000
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Install Node.js for Tailwind CSS build
+# Install Node.js for TypeScript compilation and Tailwind CSS build
 RUN apt-get update && apt-get install -y curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -52,15 +58,15 @@ RUN apt-get update && apt-get install -y curl \
 COPY ProgressPath/ProgressPath.csproj ./
 RUN dotnet restore
 
-# Copy package.json and install npm dependencies for Tailwind
-COPY ProgressPath/package.json ./
+# Copy package.json, tsconfig.json and install npm dependencies (TypeScript + Tailwind)
+COPY ProgressPath/package.json ProgressPath/tsconfig.json ./
 RUN npm install
 
 # Copy all source files
 COPY ProgressPath/ ./
 
-# Build Tailwind CSS
-RUN npm run build:css
+# Compile TypeScript and build Tailwind CSS
+RUN npm run build:ts && npm run build:css
 
 # Publish the application in Release configuration
 RUN dotnet publish -c Release -o /app/publish --no-restore

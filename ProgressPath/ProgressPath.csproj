@@ -24,7 +24,13 @@
     <Content Remove="node_modules\**" />
   </ItemGroup>
 
-  <!-- Build Tailwind CSS before main build (only if node_modules exists) -->
+  <!-- Build TypeScript and Tailwind CSS before main build (only if node_modules exists) -->
+  <Target Name="BuildTypeScript" BeforeTargets="Build;BuildTailwind"
+    Condition="Exists('node_modules')">
+    <Message Text="Compiling TypeScript..." Importance="high" />
+    <Exec Command="npm run build:ts" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
   <Target Name="BuildTailwind" BeforeTargets="Build" Condition="Exists('node_modules')">
     <Message Text="Building Tailwind CSS..." Importance="high" />
     <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />

@@ -22,6 +22,8 @@ services:
     volumes:
       # Mount source code for hot-reload (cached for better performance on macOS/Windows)
       - ./ProgressPath:/src:cached
+      # Preserve container's node_modules (prevents host's macOS binaries from overwriting)
+      - /src/node_modules
     environment:
       # Database connection - uses the 'db' service name as the host
       - ConnectionStrings__DefaultConnection=Server=db;Database=ProgressPath;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True

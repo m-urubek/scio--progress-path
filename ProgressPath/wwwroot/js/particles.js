@@ -1,15 +1,13 @@
+"use strict";
 /**
  * Particle background - auto-initializing via tsparticles
  * Renders into the #tsparticles div defined in App.razor.
  * Uses fullScreen: false so tsparticles doesn't mess with canvas positioning.
  */
-
 (function () {
     "use strict";
-
     console.log("[particles] script loaded");
-
-    var config = {
+    const config = {
         fullScreen: { enable: false },
         background: { color: { value: "transparent" } },
         fpsLimit: 60,
@@ -74,44 +72,38 @@
             }
         }
     };
-
     function init() {
         if (typeof tsParticles === "undefined") {
             console.warn("[particles] tsParticles not loaded, retrying...");
             setTimeout(init, 500);
             return;
         }
-
-        var container = document.getElementById("tsparticles");
+        const container = document.getElementById("tsparticles");
         if (!container) {
             console.warn("[particles] #tsparticles div not found, retrying...");
             setTimeout(init, 500);
             return;
         }
-
         console.log("[particles] initializing into #tsparticles, tsParticles v" + (tsParticles.version || "?"));
-
-        tsParticles.load({ id: "tsparticles", options: config }).then(function (c) {
+        tsParticles.load({ id: "tsparticles", options: config }).then((c) => {
             console.log("[particles] SUCCESS, particles:", c.particles.count);
-
             // Log canvas info
-            var canvases = container.querySelectorAll("canvas");
-            canvases.forEach(function (cv, i) {
+            const canvases = container.querySelectorAll("canvas");
+            canvases.forEach((cv, i) => {
                 console.log("[particles] canvas[" + i + "]:", cv.width + "x" + cv.height, "styles:", cv.style.cssText);
             });
-        }).catch(function (err) {
+        }).catch((err) => {
             console.error("[particles] FAILED:", err);
         });
     }
-
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init);
-    } else {
+    }
+    else {
         init();
     }
-
     window.particlesInterop = {
-        init: function (id) { return tsParticles.load({ id: id, options: config }); },
-        destroy: function (id) { tsParticles.destroy(id); }
+        init: (id) => tsParticles.load({ id, options: config }),
+        destroy: (id) => { tsParticles.destroy(id); }
     };
 })();

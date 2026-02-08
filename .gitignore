@@ -43,10 +43,13 @@ deploy.zip
 logs/
 *.log
 
-# Node.js / npm (Tailwind CSS build)
+# Node.js / npm (Tailwind CSS & TypeScript build)
 node_modules/
 **/node_modules/
 package-lock.json
+
+# Compiled TypeScript output (generated from wwwroot/ts/ sources)
+ProgressPath/wwwroot/js/
 
 # Core dumps
 core
