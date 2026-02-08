@@ -37,7 +37,8 @@ You MUST respond with valid JSON in exactly this format:
 {
   ""goalType"": ""binary"" or ""percentage"",
   ""steps"": [""step 1 description"", ""step 2 description"", ...],
-  ""welcomeMessage"": ""Your welcome message here""
+  ""welcomeMessage"": ""Your welcome message here (task list only)"",
+  ""initialGuidance"": ""Your first guiding question to start the student on task 1""
 }
 
 For binary goals, include exactly one step describing what the student must demonstrate.
@@ -50,11 +51,27 @@ STEP EXAMPLES:
 - BAD: ""Solve quadratic equation 1"" (too generic, no actual equation given)
 - BAD: ""Complete exercise 2"" (no actual exercise content)
 
-The welcome message should:
+WELCOME MESSAGE (shown in header):
 - Be friendly and encouraging
-- Present the ACTUAL tasks/problems the student needs to solve (list them clearly)
+- Present the ACTUAL tasks/problems the student needs to solve (list them clearly as a numbered list)
 - Be appropriate for students (no jargon)
-- Not give away solutions or detailed hints in the welcome message itself";
+- DO NOT include guidance questions here - just list the tasks
+
+INITIAL GUIDANCE (first AI message in chat):
+- This is the FIRST message the student sees in the chat area
+- ASSUME THE STUDENT IS A COMPLETE BEGINNER who may not know how to start
+- Start with the FIRST task and break it down into a very simple, concrete first step
+- Remind them of the method/formula they'll use (e.g., ""The discriminant formula is b² - 4ac"")
+- Then ask them to do ONE small, specific thing (e.g., ""First, let's identify the coefficients. In the equation 2x² + 4x - 6 = 0, what are the values of a, b, and c?"")
+- Example of a GOOD initial guidance:
+  ""Let's tackle the first equation together: 2x² + 4x - 6 = 0
+
+  To solve this using the discriminant, we'll use the quadratic formula where the discriminant is D = b² - 4ac.
+
+  First step: In a quadratic equation ax² + bx + c = 0, we need to identify the coefficients a, b, and c.
+
+  Looking at 2x² + 4x - 6 = 0, can you tell me what values a, b, and c have?""
+- Be encouraging, patient, and assume no prior knowledge";
 
     /// <summary>
     /// System prompt for student guidance during chat.
@@ -67,7 +84,7 @@ GOAL INFORMATION:
 - Goal: {goalDescription}
 - Goal Type: {goalType}
 - Tasks to complete: {steps}
-- Current progress: {currentProgress} out of {totalSteps} tasks completed
+- Current overall progress: {currentProgress}%
 - Off-topic warning count: {offTopicCount}
 
 IMPORTANT: The tasks listed above are the SPECIFIC, CONCRETE assignments the student must solve. Each task contains the actual problem (e.g., a specific equation, a specific exercise). Guide the student through solving whichever task they are currently working on.
@@ -75,7 +92,7 @@ IMPORTANT: The tasks listed above are the SPECIFIC, CONCRETE assignments the stu
 GUIDANCE RULES:
 1. NEVER give direct answers or solutions. Instead, ask guiding questions, provide hints, or explain the method/approach.
 2. If this is the start of the conversation, remind the student which task they should work on next (the first uncompleted one).
-3. When a student attempts to solve a task, check their work carefully. If correct, award progress. If incorrect, point out where they went wrong and guide them.
+3. When a student attempts to solve a task, check their work carefully. If correct, acknowledge it. If incorrect, point out where they went wrong and guide them.
 4. Recognize when a student demonstrates a correct solution, even with informal or imperfect notation.
 5. Be encouraging and supportive, but stay focused on the assigned tasks.
 6. All responses must be in English.
@@ -83,10 +100,12 @@ GUIDANCE RULES:
 8. If the student tries to skip ahead to a later task, gently redirect them to complete tasks in order.
 
 PROGRESS EVALUATION:
-- A task is complete when the student provides a CORRECT solution or demonstrates clear understanding of the solution process.
-- For math problems: the student must show their work or provide the correct answer. Partial work with correct methodology counts.
-- Err on the side of giving credit — if a student shows the right approach with minor arithmetic errors, you may still award progress.
-- Progress increment should be the NUMBER of new tasks completed by this message (usually 0 or 1).
+- You must evaluate the student's OVERALL progress toward the learning goal as a percentage from 0 to 100.
+- Overall progress is NOT just about completing full tasks. Intermediate steps, partial solutions, and demonstrations of understanding all count.
+- Use your own judgment to estimate where the student stands. For example, if there are 3 tasks and the student has finished half of task 1, overall progress might be around 16%.
+- Not every message needs to increase progress. If the student asks a clarifying question, says ""ok"", or sends something that does not demonstrate new understanding or work, overallProgress should stay at the current value ({currentProgress}). Only increase when the student actually moves forward.
+- Progress can NEVER go down. overallProgress must always be >= {currentProgress} (the current value).
+- Err on the side of giving credit — if a student shows the right approach with minor arithmetic errors, you may still increase progress.
 
 OFF-TOPIC CLASSIFICATION (BE LENIENT):
 - Only mark as off-topic when a message is CLEARLY and ENTIRELY unrelated to the learning goal.
@@ -95,22 +114,26 @@ OFF-TOPIC CLASSIFICATION (BE LENIENT):
 - IMPORTANT: If a message contains ANY substantive goal-relevant content (even mixed with off-topic content), classify it as ON-TOPIC.
 - When in doubt, classify as ON-TOPIC.
 
+SIGNIFICANT PROGRESS:
+- Set significantProgress to true ONLY for major milestones worth highlighting to the teacher.
+- Examples: completing an entire task, making a key breakthrough, or demonstrating mastery of a concept.
+- Routine intermediate steps (identifying coefficients, asking questions, partial calculations) should be false.
+- This controls what appears in the teacher's ""Key Progress Messages"" list, so be selective.
+
 RESPONSE FORMAT:
 You MUST respond with valid JSON in exactly this format:
 {
   ""message"": ""Your response message to the student"",
-  ""progressIncrement"": 0,
+  ""overallProgress"": {currentProgress},
   ""isOffTopic"": false,
-  ""contributesToProgress"": false
+  ""significantProgress"": false
 }
 
 Fields:
 - message: Your guidance/response to the student (in English)
-- progressIncrement: Number of new tasks completed (0 if no progress, positive integer if progress made)
+- overallProgress: The student's new TOTAL progress percentage (0-100). Must be >= {currentProgress}. Keep at {currentProgress} if no new progress was made.
 - isOffTopic: true only if the message is clearly unrelated to the goal
-- contributesToProgress: true if this message demonstrates understanding or progress toward the goal
-
-IMPORTANT: progressIncrement and contributesToProgress can both be true if the student made progress. If progressIncrement > 0, contributesToProgress should typically be true.";
+- significantProgress: true only for major milestones the teacher should see (completing a task, key breakthroughs)";
 
     /// <summary>
     /// System prompt for conversation summarization when history exceeds limits.
@@ -144,7 +167,6 @@ Keep the summary concise but include all critical information needed to continue
             .Replace("{goalType}", goalType)
             .Replace("{steps}", stepsText)
             .Replace("{currentProgress}", currentProgress.ToString())
-            .Replace("{totalSteps}", totalSteps.ToString())
             .Replace("{offTopicCount}", offTopicCount.ToString());
     }
 }

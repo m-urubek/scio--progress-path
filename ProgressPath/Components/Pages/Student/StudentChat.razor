@@ -1,5 +1,6 @@
 @page "/chat/{SessionId:int}"
 @attribute [AllowAnonymous]
+@using System.Text.Json
 @using Microsoft.AspNetCore.SignalR.Client
 @using ProgressPath.Models
 @using ProgressPath.Data
@@ -65,13 +66,13 @@
                 <div class="flex-shrink-0 px-4 pt-4" style="background: var(--color-dark-bg); backdrop-filter: blur(8px);">
                     <div class="chat-header glow-container p-4">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            @* Group Info *@
+                            @* Group Info - shows welcome message (task list) from AI *@
                             <div class="flex-1 min-w-0">
                                 <h1 class="text-lg font-semibold gradient-text truncate">
                                     @group.Name
                                 </h1>
-                                <p class="text-sm opacity-75 truncate">
-                                    @group.GoalDescription
+                                <p class="text-sm opacity-75 line-clamp-2">
+                                    @(group.WelcomeMessage ?? group.GoalDescription)
                                 </p>
                             </div>
 
@@ -105,24 +106,9 @@
                     </div>
                 }
 
-                @* Chat Messages Area *@
+                @* Chat Messages Area - initial guidance is now a real message stored in DB *@
                 <div class="flex-1" style="overflow-y: auto; min-height: 0;">
-                    @* Welcome message if no messages yet *@
-                    @if ((messages == null || !messages.Any()) && !string.IsNullOrEmpty(group.WelcomeMessage))
-                    {
-                        <div class="p-4">
-                            <div class="chat-welcome-message message-bubble message-ai">
-                                <div class="flex justify-between items-start mb-2 gap-2">
-                                    <span class="text-xs font-medium text-tertiary">AI Tutor</span>
-                                </div>
-                                <p class="text-sm leading-relaxed whitespace-pre-wrap">@group.WelcomeMessage</p>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <ChatMessageList Messages="messages" IsStudentView="true" />
-                    }
+                    <ChatMessageList Messages="messages" IsStudentView="true" />
                 </div>
 
                 @* Error Message Display *@
@@ -201,6 +187,16 @@
             var chatHistory = await ChatService.GetChatHistoryAsync(SessionId);
             messages = chatHistory.ToList();
 
+            // If no messages exist, create the initial AI guidance message
+            if (!messages.Any())
+            {
+                var initialMessage = await ChatService.CreateInitialGuidanceMessageAsync(SessionId);
+                if (initialMessage != null)
+                {
+                    messages.Add(initialMessage);
+                }
+            }
+
             pageState = PageState.Active;
 
             Logger.LogInformation(
@@ -227,8 +223,10 @@
             try
             {
                 // Create SignalR hub connection
+                // Use internal URL for server-side connection (Docker runs on port 5000 internally)
+                var hubUrl = GetSignalRHubUrl();
                 hubConnection = new HubConnectionBuilder()
-                    .WithUrl(NavigationManager.ToAbsoluteUri("/progresshub"))
+                    .WithUrl(hubUrl)
                     .WithAutomaticReconnect()
                     .Build();
 
@@ -258,16 +256,18 @@
         if (hubConnection == null) return;
 
         // ReceiveMessage handler - handles new messages (from other tabs or AI response)
-        hubConnection.On<dynamic>(ProgressHub.ClientMethods.ReceiveMessage, (payload) =>
+        // Uses JsonElement because System.Text.Json (the default SignalR protocol) doesn't
+        // support dynamic member access on deserialized payloads.
+        hubConnection.On<JsonElement>(ProgressHub.ClientMethods.ReceiveMessage, (payload) =>
         {
             try
             {
-                int messageId = (int)payload.Id;
-                string content = (string)payload.Content;
-                bool isFromStudent = (bool)payload.IsFromStudent;
-                DateTime timestamp = payload.Timestamp;
-                bool isOffTopic = payload.IsOffTopic ?? false;
-                bool contributesToProgress = payload.ContributesToProgress ?? false;
+                int messageId = payload.GetProperty("Id").GetInt32();
+                string content = payload.GetProperty("Content").GetString() ?? "";
+                bool isFromStudent = payload.GetProperty("IsFromStudent").GetBoolean();
+                DateTime timestamp = payload.GetProperty("Timestamp").GetDateTime();
+                bool isOffTopic = payload.TryGetProperty("IsOffTopic", out var offTopicProp) && offTopicProp.GetBoolean();
+                bool significantProgress = payload.TryGetProperty("SignificantProgress", out var progressProp) && progressProp.GetBoolean();
 
                 // Check if message already exists (avoid duplicates from optimistic UI)
                 if (!messages.Any(m => m.Id == messageId))
@@ -280,7 +280,7 @@
                         IsFromStudent = isFromStudent,
                         Timestamp = timestamp,
                         IsOffTopic = isOffTopic,
-                        ContributesToProgress = contributesToProgress
+                        SignificantProgress = significantProgress
                     };
 
                     messages.Add(message);
@@ -296,13 +296,13 @@
         });
 
         // ReceiveProgress handler - updates progress state
-        hubConnection.On<dynamic>(ProgressHub.ClientMethods.ReceiveProgress, (payload) =>
+        hubConnection.On<JsonElement>(ProgressHub.ClientMethods.ReceiveProgress, (payload) =>
         {
             try
             {
-                int sessionId = (int)payload.SessionId;
-                int progress = (int)payload.Progress;
-                bool isCompleted = (bool)payload.IsCompleted;
+                int sessionId = payload.GetProperty("SessionId").GetInt32();
+                int progress = payload.GetProperty("Progress").GetInt32();
+                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
 
                 if (session != null && sessionId == SessionId)
                 {
@@ -406,7 +406,7 @@
 
     /// <summary>
     /// Handles sending a new message.
-    /// Messages are received via SignalR for all tabs including the sender.
+    /// Uses optimistic UI update for immediate feedback, with SignalR for multi-tab sync.
     /// REQ-GROUP-020: Multiple tabs for same session receive synchronized updates.
     /// </summary>
     private async Task HandleSendMessage(string content)
@@ -419,11 +419,31 @@
         isSending = true;
         errorMessage = null;
 
+        // Optimistic UI: Add student message immediately with temporary ID
+        var tempStudentMessage = new ChatMessage
+        {
+            Id = -1, // Temporary ID, will be replaced by SignalR
+            StudentSessionId = SessionId,
+            Content = content.Trim(),
+            IsFromStudent = true,
+            Timestamp = DateTime.UtcNow,
+            IsOffTopic = false,
+            SignificantProgress = false
+        };
+        messages.Add(tempStudentMessage);
+        StateHasChanged();
+
         try
         {
-            // Send message to server - messages will arrive via SignalR
-            // for all tabs including this one (multi-tab sync)
+            // Send message to server - real messages will arrive via SignalR
             var aiResponse = await ChatService.SendMessageAsync(SessionId, content);
+
+            // Remove the optimistic student message (SignalR will add the real one)
+            messages.RemoveAll(m => m.Id == -1);
+
+            // If SignalR hasn't delivered the messages yet, add them directly
+            // This handles cases where SignalR is slow or disconnected
+            await RefreshMessagesIfNeeded();
 
             Logger.LogDebug(
                 "Message sent successfully for session {SessionId}, AI response: {ResponsePreview}",
@@ -442,7 +462,8 @@
                 session.IsCompleted = true;
             }
 
-            // This is not really an error, just indicate completion
+            // Remove optimistic message
+            messages.RemoveAll(m => m.Id == -1);
             errorMessage = null;
         }
         catch (Exception ex)
@@ -450,12 +471,112 @@
             // REQ-AI-022: Display error message on LLM API failure
             Logger.LogError(ex, "Error sending message for session {SessionId}", SessionId);
 
+            // Keep the optimistic student message visible (it was persisted)
+            // but remove the temp ID marker
+            var tempMsg = messages.FirstOrDefault(m => m.Id == -1);
+            if (tempMsg != null)
+            {
+                messages.Remove(tempMsg);
+            }
+
+            // Refresh to get the actual persisted message
+            await RefreshMessagesIfNeeded();
+
             errorMessage = "Sorry, I'm having trouble responding right now. Please try again in a moment.";
         }
         finally
         {
             isSending = false;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Gets the SignalR hub URL, handling Docker environment where internal port differs from external.
+    /// </summary>
+    private string GetSignalRHubUrl()
+    {
+        // In Docker, the server runs on port 5000 internally, but NavigationManager may return
+        // the host-mapped port (e.g., 5001). For server-side SignalR connections, use internal URL.
+        var environment = Configuration["ASPNETCORE_ENVIRONMENT"];
+        if (environment == "Development")
+        {
+            // In Docker dev environment, connect to internal port
+            return "http://localhost:5000/progresshub";
+        }
+
+        // For production or other environments, use NavigationManager
+        return NavigationManager.ToAbsoluteUri("/progresshub").ToString();
+    }
+
+    /// <summary>
+    /// Refreshes messages and session progress from the database if SignalR hasn't delivered them.
+    /// </summary>
+    private async Task RefreshMessagesIfNeeded()
+    {
+        try
+        {
+            var latestMessages = await ChatService.GetChatHistoryAsync(SessionId);
+            var latestList = latestMessages.ToList();
+
+            // Only update if we're missing messages
+            if (latestList.Count > messages.Count(m => m.Id > 0))
+            {
+                // Merge: keep existing messages, add any new ones
+                foreach (var msg in latestList)
+                {
+                    if (!messages.Any(m => m.Id == msg.Id))
+                    {
+                        messages.Add(msg);
+                    }
+                }
+
+                // Sort by timestamp
+                messages = messages.Where(m => m.Id > 0).OrderBy(m => m.Timestamp).ToList();
+            }
+
+            // Also refresh session progress in case SignalR didn't deliver the update
+            await RefreshSessionProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh messages for session {SessionId}", SessionId);
+        }
+    }
+
+    /// <summary>
+    /// Refreshes session progress from the database.
+    /// Called after sending a message to ensure progress is up-to-date even if SignalR fails.
+    /// </summary>
+    private async Task RefreshSessionProgressAsync()
+    {
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var updatedSession = await dbContext.StudentSessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == SessionId);
+
+            if (updatedSession != null && session != null)
+            {
+                // Only update if progress has changed
+                if (session.CurrentProgress != updatedSession.CurrentProgress ||
+                    session.IsCompleted != updatedSession.IsCompleted)
+                {
+                    session.CurrentProgress = updatedSession.CurrentProgress;
+                    session.IsCompleted = updatedSession.IsCompleted;
+
+                    Logger.LogDebug(
+                        "Refreshed session progress for {SessionId}: {Progress}, Completed: {IsCompleted}",
+                        SessionId,
+                        session.CurrentProgress,
+                        session.IsCompleted);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh session progress for {SessionId}", SessionId);
         }
     }
 

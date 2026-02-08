@@ -55,7 +55,7 @@ public class ChatService : IChatService
     public async Task<IEnumerable<ChatMessage>> GetProgressMessagesAsync(int sessionId)
     {
         return await _dbContext.ChatMessages
-            .Where(m => m.StudentSessionId == sessionId && m.ContributesToProgress)
+            .Where(m => m.StudentSessionId == sessionId && m.SignificantProgress)
             .OrderBy(m => m.Timestamp)
             .ToListAsync();
     }
@@ -95,7 +95,7 @@ public class ChatService : IChatService
             StudentSessionId = session.Id,
             Content = trimmedContent,
             IsFromStudent = true,
-            ContributesToProgress = false,
+            SignificantProgress = false,
             IsOffTopic = false,
             Timestamp = DateTime.UtcNow
         };
@@ -181,7 +181,7 @@ public class ChatService : IChatService
             StudentSessionId = session.Id,
             Content = response.Message,
             IsFromStudent = false,
-            ContributesToProgress = false, // AI messages don't contribute directly
+            SignificantProgress = false, // AI messages are not flagged as significant
             IsOffTopic = false,
             Timestamp = DateTime.UtcNow
         };
@@ -204,7 +204,7 @@ public class ChatService : IChatService
 
         // Update student message flags based on AI classification
         studentMessage.IsOffTopic = response.IsOffTopic;
-        studentMessage.ContributesToProgress = response.ContributesToProgress;
+        studentMessage.SignificantProgress = response.SignificantProgress;
 
         // Handle off-topic logic (REQ-AI-008, REQ-AI-010, REQ-AI-019)
         if (response.IsOffTopic)
@@ -257,16 +257,15 @@ public class ChatService : IChatService
         }
 
         // Handle progress update (REQ-GOAL-011: progress only increases)
-        if (response.ProgressIncrement > 0)
+        if (response.OverallProgress > session.CurrentProgress)
         {
-            var newProgress = session.CurrentProgress + response.ProgressIncrement;
+            var newProgress = response.OverallProgress;
 
             _logger.LogInformation(
-                "Progress update for session {SessionId}: {Old} -> {New} (increment: {Inc})",
+                "Progress update for session {SessionId}: {Old} -> {New}",
                 session.Id,
                 session.CurrentProgress,
-                newProgress,
-                response.ProgressIncrement);
+                newProgress);
 
             // Save current changes first before calling UpdateProgressAsync
             await _dbContext.SaveChangesAsync();
@@ -310,6 +309,60 @@ public class ChatService : IChatService
             // Broadcast AI message to all tabs (REQ-GROUP-020: multi-tab sync)
             await _hubNotificationService.NotifyNewMessageAsync(session.Id, session.GroupId, aiMessage);
         }
+
+        return aiMessage;
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatMessage?> CreateInitialGuidanceMessageAsync(int sessionId)
+    {
+        // Load session with Group
+        var session = await _dbContext.StudentSessions
+            .Include(s => s.Group)
+            .Include(s => s.ChatMessages)
+            .FirstOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session == null)
+        {
+            _logger.LogWarning("Cannot create initial guidance: session {SessionId} not found", sessionId);
+            return null;
+        }
+
+        // Only create if no messages exist yet
+        if (session.ChatMessages.Any())
+        {
+            _logger.LogDebug("Session {SessionId} already has messages, skipping initial guidance", sessionId);
+            return null;
+        }
+
+        // Get the initial guidance from the group
+        var initialGuidance = session.Group.InitialGuidance;
+        if (string.IsNullOrWhiteSpace(initialGuidance))
+        {
+            // Fallback to welcome message if no initial guidance is set
+            initialGuidance = session.Group.WelcomeMessage ?? "Welcome! Let's get started with your learning goal.";
+        }
+
+        // Create the initial AI message
+        var aiMessage = new ChatMessage
+        {
+            StudentSessionId = sessionId,
+            Content = initialGuidance,
+            IsFromStudent = false,
+            IsOffTopic = false,
+            SignificantProgress = false,
+            Timestamp = DateTime.UtcNow
+        };
+
+        _dbContext.ChatMessages.Add(aiMessage);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Created initial guidance message for session {SessionId}",
+            sessionId);
+
+        // Broadcast to SignalR so other tabs see it
+        await _hubNotificationService.NotifyNewMessageAsync(sessionId, session.GroupId, aiMessage);
 
         return aiMessage;
     }

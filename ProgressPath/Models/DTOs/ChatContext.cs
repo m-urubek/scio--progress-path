@@ -86,12 +86,8 @@ public class ChatContext
                 return CurrentProgress >= 1 ? 100 : 0;
             }
 
-            if (TotalSteps is null or 0)
-            {
-                return 0;
-            }
-
-            return (int)Math.Round((double)CurrentProgress / TotalSteps.Value * 100);
+            // For percentage goals, CurrentProgress already stores the percentage (0-100)
+            return Math.Clamp(CurrentProgress, 0, 100);
         }
     }
 }

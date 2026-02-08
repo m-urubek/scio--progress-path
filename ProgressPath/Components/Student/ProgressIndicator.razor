@@ -53,13 +53,14 @@ else
     public GoalType GoalType { get; set; }
 
     /// <summary>
-    /// Current progress value (number of steps completed).
+    /// Current progress value. For percentage goals, this is already a percentage (0-100).
+    /// For binary goals, 0 = incomplete, 1 = complete.
     /// </summary>
     [Parameter]
     public int CurrentProgress { get; set; }
 
     /// <summary>
-    /// Total steps for percentage goals.
+    /// Total steps for percentage goals (informational context).
     /// Null or 1 for binary goals.
     /// </summary>
     [Parameter]
@@ -73,7 +74,7 @@ else
 
     /// <summary>
     /// Calculates the progress percentage for display (REQ-GOAL-012).
-    /// Returns rounded integer between 0 and 100.
+    /// For percentage goals, CurrentProgress already stores the percentage directly.
     /// </summary>
     private int CalculatePercentage()
     {
@@ -82,15 +83,7 @@ else
             return IsCompleted ? 100 : 0;
         }
 
-        var totalSteps = TotalSteps ?? 1;
-        if (totalSteps <= 0) return 0;
-
-        var percentage = (int)Math.Round(CurrentProgress * 100.0 / totalSteps);
-
-        // Ensure bounds (REQ-GOAL-012: 0% for no progress, 100% for full completion)
-        if (percentage > 100) percentage = 100;
-        if (percentage < 0) percentage = 0;
-
-        return percentage;
+        // CurrentProgress is already a percentage (0-100) for percentage goals
+        return Math.Clamp(CurrentProgress, 0, 100);
     }
 }

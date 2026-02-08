@@ -3,21 +3,6 @@
 @inject NavigationManager NavigationManager
 @inject ILogger<StudentDetail> Logger
 
-@* Inline modal overlay for full chat view (REQ-DASH-016) *@
-@if (showFullChat)
-{
-    <ChatHistoryModal SessionId="SessionId"
-                     Nickname="Nickname"
-                     GroupId="GroupId"
-                     GoalType="GoalType"
-                     TotalSteps="TotalSteps"
-                     CurrentProgress="CurrentProgress"
-                     IsCompleted="IsCompleted"
-                     IsVisible="true"
-                     IsEmbedded="false"
-                     OnClose="CloseFullChat" />
-}
-
 <div class="student-detail">
     @if (isLoading)
     {
@@ -57,7 +42,7 @@
                             <span class="text-xs opacity-50">
                                 @message.Timestamp.ToString("MMM dd, HH:mm")
                             </span>
-                            @if (message.ContributesToProgress)
+                            @if (message.SignificantProgress)
                             {
                                 <span class="text-xs px-1.5 py-0.5 rounded"
                                       style="background: rgba(34, 211, 216, 0.2); color: var(--color-tertiary);">
@@ -135,9 +120,15 @@
     [Parameter]
     public bool IsCompleted { get; set; }
 
+    /// <summary>
+    /// Callback when the "View Full Chat" button is clicked.
+    /// Parent component handles modal rendering to avoid CSS containment issues.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnViewFullChat { get; set; }
+
     private IEnumerable<ChatMessage>? progressMessages;
     private bool isLoading = true;
-    private bool showFullChat = false;
 
     /// <summary>
     /// Loads progress messages when the component initializes or parameters change.
@@ -181,22 +172,11 @@
     }
 
     /// <summary>
-    /// Opens the full chat view as an inline modal (REQ-DASH-016).
-    /// Alternative: NavigationManager.NavigateTo($"/groups/{GroupId}/students/{SessionId}/chat");
+    /// Opens the full chat view by invoking parent callback (REQ-DASH-016).
+    /// Modal is rendered at parent level to avoid CSS containment issues from backdrop-filter.
     /// </summary>
-    private void ViewFullChat()
+    private async Task ViewFullChat()
     {
-        // Show inline modal instead of navigating
-        showFullChat = true;
-        StateHasChanged();
-    }
-
-    /// <summary>
-    /// Closes the full chat modal.
-    /// </summary>
-    private void CloseFullChat()
-    {
-        showFullChat = false;
-        StateHasChanged();
+        await OnViewFullChat.InvokeAsync();
     }
 }

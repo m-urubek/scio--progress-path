@@ -12,7 +12,7 @@ using ProgressPath.Data;
 namespace ProgressPath.Migrations
 {
     [DbContext(typeof(ProgressPathDbContext))]
-    [Migration("20260208092456_InitialCreate")]
+    [Migration("20260208135846_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -38,13 +38,13 @@ namespace ProgressPath.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<bool>("ContributesToProgress")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsFromStudent")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsOffTopic")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SignificantProgress")
                         .HasColumnType("bit");
 
                     b.Property<int>("StudentSessionId")
@@ -83,6 +83,10 @@ namespace ProgressPath.Migrations
 
                     b.Property<int>("GoalType")
                         .HasColumnType("int");
+
+                    b.Property<string>("InitialGuidance")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("IsConfirmed")
                         .HasColumnType("bit");

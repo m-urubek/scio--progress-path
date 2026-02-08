@@ -223,8 +223,8 @@ public class StudentSessionService : IStudentSessionService
         }
         else // Percentage goal
         {
-            // Percentage goal: completed when progress >= TotalSteps
-            if (session.Group.TotalSteps.HasValue && newProgress >= session.Group.TotalSteps.Value)
+            // Percentage goal: completed when progress >= 100%
+            if (newProgress >= 100)
             {
                 session.IsCompleted = true;
             }
@@ -256,10 +256,25 @@ public class StudentSessionService : IStudentSessionService
             throw new KeyNotFoundException($"Student session with ID {sessionId} not found.");
         }
 
+        // Reset inactivity warning when student resumes activity
+        // This ensures the two-step escalation resets for the next inactivity period
+        var wasInactive = session.InactivityWarningSentAt != null;
+        
         session.LastActivityAt = DateTime.UtcNow;
+        session.InactivityWarningSentAt = null; // Reset warning for next inactivity cycle
+        
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogDebug("Updated last activity for session {SessionId}", sessionId);
+        if (wasInactive)
+        {
+            _logger.LogInformation(
+                "Session {SessionId} resumed activity, inactivity warning reset", 
+                sessionId);
+        }
+        else
+        {
+            _logger.LogDebug("Updated last activity for session {SessionId}", sessionId);
+        }
     }
 
     /// <inheritdoc />

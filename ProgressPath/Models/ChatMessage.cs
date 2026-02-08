@@ -32,17 +32,23 @@ public class ChatMessage
     public bool IsFromStudent { get; set; }
 
     /// <summary>
-    /// Whether this message contributed to goal progress (REQ-AI-028).
-    /// Pre-computed during AI message processing.
-    /// Used to highlight contributing messages and show progress on teacher dashboard.
+    /// Whether this message represents a significant milestone worth highlighting.
+    /// Set by AI classification during message processing.
+    /// Controls what appears in the teacher's "Key Progress Messages" list.
     /// </summary>
-    public bool ContributesToProgress { get; set; } = false;
+    public bool SignificantProgress { get; set; } = false;
 
     /// <summary>
     /// Whether this message was classified as off-topic.
     /// Only applicable to student messages.
     /// </summary>
     public bool IsOffTopic { get; set; } = false;
+
+    /// <summary>
+    /// Whether this is a system-generated message (e.g., inactivity warning).
+    /// System messages are styled differently from regular AI tutor messages.
+    /// </summary>
+    public bool IsSystemMessage { get; set; } = false;
 
     /// <summary>
     /// Timestamp when the message was created.

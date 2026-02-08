@@ -43,6 +43,7 @@ namespace ProgressPath.Migrations
                     GoalInterpretation = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     IsConfirmed = table.Column<bool>(type: "bit", nullable: false),
                     WelcomeMessage = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    InitialGuidance = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     TeacherId = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -94,7 +95,7 @@ namespace ProgressPath.Migrations
                     StudentSessionId = table.Column<int>(type: "int", nullable: false),
                     Content = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
                     IsFromStudent = table.Column<bool>(type: "bit", nullable: false),
-                    ContributesToProgress = table.Column<bool>(type: "bit", nullable: false),
+                    SignificantProgress = table.Column<bool>(type: "bit", nullable: false),
                     IsOffTopic = table.Column<bool>(type: "bit", nullable: false),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },

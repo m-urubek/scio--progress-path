@@ -14,11 +14,12 @@ public class ChatResponse
     public string Message { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of new steps completed by this message.
-    /// 0 if the message didn't advance progress.
-    /// For binary goals, 1 means the goal is complete.
+    /// The student's new overall progress percentage (0-100).
+    /// Returned by the AI as an absolute value, not an increment.
+    /// The system enforces that progress never decreases.
+    /// For binary goals, 0 = incomplete, 1 = complete.
     /// </summary>
-    public int ProgressIncrement { get; set; } = 0;
+    public int OverallProgress { get; set; } = 0;
 
     /// <summary>
     /// Whether the student's message was classified as off-topic.
@@ -28,11 +29,11 @@ public class ChatResponse
     public bool IsOffTopic { get; set; } = false;
 
     /// <summary>
-    /// Whether the student's message contributed to goal progress.
-    /// Used for highlighting messages in the UI (REQ-CHAT-007).
-    /// Pre-computed during message processing (REQ-AI-028).
+    /// Whether this message represents a significant milestone worth highlighting to the teacher.
+    /// Only major events like completing a task or demonstrating mastery should be flagged.
+    /// Controls what appears in the teacher's "Key Progress Messages" list.
     /// </summary>
-    public bool ContributesToProgress { get; set; } = false;
+    public bool SignificantProgress { get; set; } = false;
 
     /// <summary>
     /// Indicates if there was an error processing the message.
@@ -49,9 +50,9 @@ public class ChatResponse
         return new ChatResponse
         {
             Message = "Sorry, I'm having trouble responding right now. Please try again in a moment.",
-            ProgressIncrement = 0,
+            OverallProgress = 0,
             IsOffTopic = false,
-            ContributesToProgress = false,
+            SignificantProgress = false,
             IsError = true
         };
     }
@@ -61,16 +62,16 @@ public class ChatResponse
     /// </summary>
     public static ChatResponse CreateSuccess(
         string message,
-        int progressIncrement = 0,
+        int overallProgress = 0,
         bool isOffTopic = false,
-        bool contributesToProgress = false)
+        bool significantProgress = false)
     {
         return new ChatResponse
         {
             Message = message,
-            ProgressIncrement = Math.Max(0, progressIncrement), // Ensure non-negative
+            OverallProgress = Math.Clamp(overallProgress, 0, 100),
             IsOffTopic = isOffTopic,
-            ContributesToProgress = contributesToProgress,
+            SignificantProgress = significantProgress,
             IsError = false
         };
     }

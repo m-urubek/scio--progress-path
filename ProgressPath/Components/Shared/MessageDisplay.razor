@@ -2,21 +2,21 @@
 
 @* MessageDisplay.razor - Reusable component for rendering a single chat message
    Handles student vs AI message styling, progress contribution highlighting,
-   off-topic indicators, timestamps, and placeholders for math/code rendering.
+   off-topic indicators, system messages, timestamps, and placeholders for math/code rendering.
    REQ-CHAT-005 through REQ-CHAT-008, REQ-CHAT-010, REQ-CHAT-011 *@
 
 <div class="message-bubble @GetMessageClasses()">
     @* Message Header: Sender indicator and timestamp *@
     <div class="flex justify-between items-start mb-2 gap-2">
         @* Sender Label *@
-        <span class="text-xs font-medium @(Message.IsFromStudent ? "text-secondary" : "text-tertiary")">
-            @(Message.IsFromStudent ? "Student" : "AI Tutor")
+        <span class="text-xs font-medium @GetSenderLabelClass()">
+            @GetSenderLabel()
         </span>
 
         @* Timestamp and Indicators *@
         <div class="flex items-center gap-2">
             @* Progress Contribution Indicator (REQ-CHAT-007) *@
-            @if (ShowProgressIndicator && Message.ContributesToProgress && Message.IsFromStudent)
+            @if (ShowProgressIndicator && Message.SignificantProgress && Message.IsFromStudent)
             {
                 <span class="message-progress-badge">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -83,10 +83,14 @@
     {
         var classes = new List<string>();
 
-        // Add student or AI class
+        // Add student, AI, or system class
         if (Message.IsFromStudent)
         {
             classes.Add("message-student");
+        }
+        else if (Message.IsSystemMessage)
+        {
+            classes.Add("message-system");
         }
         else
         {
@@ -94,12 +98,48 @@
         }
 
         // Add progress contribution highlight (green border) for student messages
-        if (Message.ContributesToProgress && Message.IsFromStudent)
+        if (Message.SignificantProgress && Message.IsFromStudent)
         {
             classes.Add("message-progress");
         }
 
         return string.Join(" ", classes);
+    }
+
+    /// <summary>
+    /// Gets the appropriate sender label based on message type.
+    /// </summary>
+    private string GetSenderLabel()
+    {
+        if (Message.IsFromStudent)
+        {
+            return "Student";
+        }
+        
+        if (Message.IsSystemMessage)
+        {
+            return "System";
+        }
+        
+        return "AI Tutor";
+    }
+
+    /// <summary>
+    /// Gets the CSS class for the sender label.
+    /// </summary>
+    private string GetSenderLabelClass()
+    {
+        if (Message.IsFromStudent)
+        {
+            return "text-secondary";
+        }
+        
+        if (Message.IsSystemMessage)
+        {
+            return "text-amber-400";
+        }
+        
+        return "text-tertiary";
     }
 
     /// <summary>

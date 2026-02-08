@@ -220,11 +220,8 @@
             }
             else
             {
-                // Percentage goals: (CurrentProgress / TotalSteps) * 100
-                var totalSteps = group.TotalSteps ?? 1;
-                totalProgress += totalSteps > 0
-                    ? (double)session.CurrentProgress / totalSteps * 100
-                    : 0;
+                // Percentage goals: CurrentProgress is already a percentage (0-100)
+                totalProgress += Math.Clamp(session.CurrentProgress, 0, 100);
             }
         }
 

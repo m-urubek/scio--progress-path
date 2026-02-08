@@ -21,7 +21,7 @@
             @if (GoalType == GoalType.Binary)
             {
                 <!-- Binary Goal: Checkmark when complete -->
-                @if (Session.IsCompleted)
+                @if (IsCompleted)
                 {
                     <div class="flex items-center justify-center w-8 h-8 rounded-full"
                          style="background: linear-gradient(to right, var(--color-tertiary), var(--color-secondary));">
@@ -92,7 +92,7 @@
                     <span class="hidden sm:inline ml-1">Resolve</span>
                 </button>
             }
-            else if (Session.IsCompleted)
+            else if (IsCompleted)
             {
                 <!-- Completed Badge -->
                 <span class="text-xs px-2 py-1 rounded-full" style="background: rgba(34, 211, 216, 0.2); color: var(--color-tertiary);">
@@ -105,14 +105,15 @@
     <!-- Expanded Detail Section -->
     @if (IsExpanded)
     {
-        <div class="student-row-expanded mt-4 pt-4" style="border-top: 1px solid rgba(192, 132, 252, 0.2);">
+        <div class="student-row-expanded mt-4 pt-4" style="border-top: 1px solid rgba(192, 132, 252, 0.2);" @onclick:stopPropagation="true">
             <StudentDetail SessionId="Session.Id"
                           Nickname="Session.Nickname"
                           GroupId="Session.GroupId"
                           GoalType="GoalType"
                           TotalSteps="TotalSteps"
-                          CurrentProgress="Session.CurrentProgress"
-                          IsCompleted="Session.IsCompleted" />
+                          CurrentProgress="CurrentProgress"
+                          IsCompleted="IsCompleted"
+                          OnViewFullChat="HandleViewFullChat" />
         </div>
     }
 </div>
@@ -123,6 +124,18 @@
     /// </summary>
     [Parameter]
     public StudentSession Session { get; set; } = null!;
+
+    /// <summary>
+    /// The current progress value (passed separately for Blazor change detection).
+    /// </summary>
+    [Parameter]
+    public int CurrentProgress { get; set; }
+
+    /// <summary>
+    /// Whether the goal is completed (passed separately for Blazor change detection).
+    /// </summary>
+    [Parameter]
+    public bool IsCompleted { get; set; }
 
     /// <summary>
     /// The type of goal for this group.
@@ -161,25 +174,24 @@
     public EventCallback<int> OnResolveAlert { get; set; }
 
     /// <summary>
+    /// Callback when "View Full Chat" is clicked.
+    /// Passes the session ID to the parent for modal handling.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnViewFullChat { get; set; }
+
+    /// <summary>
     /// Calculates the progress percentage for display (REQ-GOAL-012).
     /// </summary>
     private int CalculatePercentage()
     {
         if (GoalType == GoalType.Binary)
         {
-            return Session.IsCompleted ? 100 : 0;
+            return IsCompleted ? 100 : 0;
         }
 
-        var totalSteps = TotalSteps ?? 1;
-        if (totalSteps <= 0) return 0;
-
-        var percentage = (int)Math.Round(Session.CurrentProgress * 100.0 / totalSteps);
-
-        // Ensure bounds
-        if (percentage > 100) percentage = 100;
-        if (percentage < 0) percentage = 0;
-
-        return percentage;
+        // CurrentProgress is already a percentage (0-100) for percentage goals
+        return Math.Clamp(CurrentProgress, 0, 100);
     }
 
     /// <summary>
@@ -210,5 +222,13 @@
         {
             await OnResolveAlert.InvokeAsync(ActiveAlert.Id);
         }
+    }
+
+    /// <summary>
+    /// Handles the view full chat button click.
+    /// </summary>
+    private async Task HandleViewFullChat()
+    {
+        await OnViewFullChat.InvokeAsync(Session.Id);
     }
 }

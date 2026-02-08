@@ -6,7 +6,9 @@ namespace ProgressPath.Services;
 
 /// <summary>
 /// Background service that monitors student inactivity and creates alerts.
-/// Runs periodic checks every minute to detect students inactive for 10+ minutes.
+/// Implements two-step escalation per assignment requirements:
+/// 1. First warning: After 5 minutes of inactivity, sends a nudge message to the student
+/// 2. Teacher alert: After 10 minutes (5 more after warning), alerts the teacher
 /// REQ-AI-012 through REQ-AI-016
 /// </summary>
 public class InactivityMonitorService : BackgroundService
@@ -15,14 +17,27 @@ public class InactivityMonitorService : BackgroundService
     private readonly ILogger<InactivityMonitorService> _logger;
 
     /// <summary>
-    /// Inactivity timeout in minutes (fixed at 10 per REQ-AI-012 / FC-001).
+    /// Time before sending first warning to student (in minutes).
     /// </summary>
-    private const int InactivityTimeoutMinutes = 10;
+    private const int WarningTimeoutMinutes = 5;
+
+    /// <summary>
+    /// Time before escalating to teacher alert after warning (in minutes).
+    /// Total inactivity time = WarningTimeoutMinutes + AlertTimeoutMinutes = 10 minutes.
+    /// </summary>
+    private const int AlertTimeoutMinutes = 5;
 
     /// <summary>
     /// Check interval in milliseconds (1 minute).
     /// </summary>
     private const int CheckIntervalMs = 60000;
+
+    /// <summary>
+    /// Nudge message sent to student when they've been inactive.
+    /// </summary>
+    private const string InactivityWarningMessage = 
+        "👋 Hey there! I noticed you've been quiet for a while. " +
+        "Need any help with the current task? Feel free to ask questions or share your progress!";
 
     public InactivityMonitorService(
         IServiceScopeFactory scopeFactory,
@@ -68,68 +83,111 @@ public class InactivityMonitorService : BackgroundService
     }
 
     /// <summary>
-    /// Checks for inactive students and creates alerts for those who meet the criteria.
+    /// Checks for inactive students and implements two-step escalation:
+    /// 1. After 5 minutes inactive: send warning message to student
+    /// 2. After 10 minutes inactive (5 after warning): alert teacher
     /// </summary>
     private async Task CheckForInactiveStudentsAsync(CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ProgressPathDbContext>();
         var alertService = scope.ServiceProvider.GetRequiredService<IAlertService>();
+        var hubNotificationService = scope.ServiceProvider.GetRequiredService<IHubNotificationService>();
 
-        var inactivityThreshold = DateTime.UtcNow.AddMinutes(-InactivityTimeoutMinutes);
+        var warningThreshold = DateTime.UtcNow.AddMinutes(-WarningTimeoutMinutes);
+        var alertThreshold = DateTime.UtcNow.AddMinutes(-AlertTimeoutMinutes);
 
-        // Find inactive sessions:
-        // 1. Not completed (completed students don't need monitoring)
-        // 2. Either:
-        //    a. No messages sent yet (LastActivityAt is null) AND joined > 10 minutes ago
-        //    b. Has sent messages AND last activity > 10 minutes ago
-        // 3. Don't already have an unresolved inactivity alert
+        // Find inactive sessions that are not completed
         var inactiveSessions = await dbContext.StudentSessions
             .Include(s => s.HelpAlerts)
-            .Where(s =>
-                !s.IsCompleted &&
-                (
-                    // Never sent a message, but joined > 10 minutes ago
-                    (s.LastActivityAt == null && s.JoinedAt < inactivityThreshold) ||
-                    // Has sent messages, but last activity > 10 minutes ago
-                    (s.LastActivityAt != null && s.LastActivityAt < inactivityThreshold)
-                ))
+            .Include(s => s.Group)
+            .Where(s => !s.IsCompleted)
             .ToListAsync(stoppingToken);
-
-        if (inactiveSessions.Count == 0)
-        {
-            return;
-        }
-
-        _logger.LogDebug("Found {Count} potentially inactive sessions to check", inactiveSessions.Count);
 
         foreach (var session in inactiveSessions)
         {
             stoppingToken.ThrowIfCancellationRequested();
 
-            // Check if there's already an unresolved inactivity alert for this session
-            var hasUnresolvedInactivityAlert = session.HelpAlerts
-                .Any(a => a.AlertType == AlertType.Inactivity && !a.IsResolved);
+            // Calculate when activity started (last activity, or join time if never sent a message)
+            var activityStartTime = session.LastActivityAt ?? session.JoinedAt;
+            var inactiveMinutes = (int)(DateTime.UtcNow - activityStartTime).TotalMinutes;
 
-            if (hasUnresolvedInactivityAlert)
+            // Skip if not inactive long enough for warning yet
+            if (activityStartTime > warningThreshold)
             {
-                // Skip - alert already exists (REQ-AI-016)
                 continue;
             }
 
-            // Create inactivity alert
-            var alert = await alertService.CreateInactivityAlertAsync(session.Id);
-
-            if (alert != null)
+            // Check if warning has been sent
+            if (session.InactivityWarningSentAt == null)
             {
-                var inactiveMinutes = session.LastActivityAt.HasValue
-                    ? (int)(DateTime.UtcNow - session.LastActivityAt.Value).TotalMinutes
-                    : (int)(DateTime.UtcNow - session.JoinedAt).TotalMinutes;
-
+                // Step 1: Send warning message to student (5 minutes inactive)
+                await SendInactivityWarningAsync(dbContext, hubNotificationService, session);
+                
                 _logger.LogInformation(
-                    "Created inactivity alert for session {SessionId} (student '{Nickname}') - inactive for {Minutes} minutes",
+                    "Sent inactivity warning to session {SessionId} (student '{Nickname}') - inactive for {Minutes} minutes",
                     session.Id, session.Nickname, inactiveMinutes);
             }
+            else
+            {
+                // Warning was sent - check if enough time has passed to escalate to teacher
+                var timeSinceWarning = DateTime.UtcNow - session.InactivityWarningSentAt.Value;
+                
+                if (timeSinceWarning.TotalMinutes >= AlertTimeoutMinutes)
+                {
+                    // Check if there's already an unresolved inactivity alert
+                    var hasUnresolvedInactivityAlert = session.HelpAlerts
+                        .Any(a => a.AlertType == AlertType.Inactivity && !a.IsResolved);
+
+                    if (!hasUnresolvedInactivityAlert)
+                    {
+                        // Step 2: Alert teacher (10 minutes total inactive)
+                        var alert = await alertService.CreateInactivityAlertAsync(session.Id);
+
+                        if (alert != null)
+                        {
+                            _logger.LogInformation(
+                                "Created inactivity alert for session {SessionId} (student '{Nickname}') - inactive for {Minutes} minutes",
+                                session.Id, session.Nickname, inactiveMinutes);
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// Sends an inactivity warning message to the student's chat.
+    /// This is a system message that nudges the student to continue working.
+    /// </summary>
+    private async Task SendInactivityWarningAsync(
+        ProgressPathDbContext dbContext,
+        IHubNotificationService hubNotificationService,
+        StudentSession session)
+    {
+        // Create warning message as a system message (not from student, marked as system)
+        var warningMessage = new ChatMessage
+        {
+            StudentSessionId = session.Id,
+            Content = InactivityWarningMessage,
+            IsFromStudent = false,
+            IsSystemMessage = true,
+            SignificantProgress = false,
+            IsOffTopic = false,
+            Timestamp = DateTime.UtcNow
+        };
+
+        dbContext.ChatMessages.Add(warningMessage);
+
+        // Mark that warning was sent
+        session.InactivityWarningSentAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync();
+
+        // Broadcast to student's chat in real-time
+        await hubNotificationService.NotifyNewMessageAsync(
+            session.Id, 
+            session.GroupId, 
+            warningMessage);
     }
 }

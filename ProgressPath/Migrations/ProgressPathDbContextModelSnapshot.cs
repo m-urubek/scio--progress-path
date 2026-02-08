@@ -35,13 +35,13 @@ namespace ProgressPath.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<bool>("ContributesToProgress")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsFromStudent")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsOffTopic")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SignificantProgress")
                         .HasColumnType("bit");
 
                     b.Property<int>("StudentSessionId")
@@ -80,6 +80,10 @@ namespace ProgressPath.Migrations
 
                     b.Property<int>("GoalType")
                         .HasColumnType("int");
+
+                    b.Property<string>("InitialGuidance")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("IsConfirmed")
                         .HasColumnType("bit");

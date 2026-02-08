@@ -2,6 +2,9 @@ namespace ProgressPath.Models;
 
 /// <summary>
 /// Represents the role of a user in the system.
+/// Currently only Teacher is defined — students access the app anonymously via QR code join links
+/// and do not require accounts. The enum and corresponding User.Role DB column are retained
+/// as scaffolding for future role-based authorization policies (e.g. Admin, Student accounts).
 /// </summary>
 public enum UserRole
 {

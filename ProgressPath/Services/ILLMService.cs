@@ -42,9 +42,9 @@ public interface ILLMService
     /// <returns>
     /// A ChatResponse containing:
     /// - Message: AI tutor's response in English (REQ-CHAT-003)
-    /// - ProgressIncrement: Steps completed (bias toward giving credit per REQ-AI-004)
+    /// - OverallProgress: Student's new total progress percentage 0-100 (bias toward giving credit per REQ-AI-004)
     /// - IsOffTopic: True only for clearly unrelated messages (REQ-AI-006)
-    /// - ContributesToProgress: Flag for message highlighting (REQ-AI-028)
+    /// - SignificantProgress: Flag for major milestones worth highlighting to teacher (REQ-AI-028)
     /// </returns>
     /// <remarks>
     /// The AI tutor:

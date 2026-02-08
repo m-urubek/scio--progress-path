@@ -147,7 +147,7 @@ public static class DbInitializer
                 StudentSessionId = student1.Id,
                 Content = "Welcome! Your goal is to solve 3 different quadratic equations using the discriminant formula (b² - 4ac). I'll guide you through each step without giving direct answers. Let's start with understanding what makes an equation quadratic. Ready?",
                 IsFromStudent = false,
-                ContributesToProgress = false,
+                SignificantProgress = false,
                 IsOffTopic = false,
                 Timestamp = DateTime.UtcNow.AddDays(-5)
             },
@@ -156,7 +156,7 @@ public static class DbInitializer
                 StudentSessionId = student1.Id,
                 Content = "Yes, I'm ready! I know quadratic equations have x squared in them.",
                 IsFromStudent = true,
-                ContributesToProgress = false,
+                SignificantProgress = false,
                 IsOffTopic = false,
                 Timestamp = DateTime.UtcNow.AddDays(-5).AddMinutes(2)
             },
@@ -165,7 +165,7 @@ public static class DbInitializer
                 StudentSessionId = student1.Id,
                 Content = "For x² + 5x + 6 = 0, I calculated b² - 4ac = 25 - 24 = 1, so x = (-5 ± 1)/2, giving x = -2 or x = -3.",
                 IsFromStudent = true,
-                ContributesToProgress = true,
+                SignificantProgress = true,
                 IsOffTopic = false,
                 Timestamp = DateTime.UtcNow.AddDays(-5).AddMinutes(15)
             }
@@ -179,7 +179,7 @@ public static class DbInitializer
                 StudentSessionId = student2.Id,
                 Content = "Welcome! Your goal is to solve 3 different quadratic equations using the discriminant formula. Let's get started!",
                 IsFromStudent = false,
-                ContributesToProgress = false,
+                SignificantProgress = false,
                 IsOffTopic = false,
                 Timestamp = DateTime.UtcNow.AddDays(-3)
             },
@@ -188,7 +188,7 @@ public static class DbInitializer
                 StudentSessionId = student2.Id,
                 Content = "I solved 2x² - 3x - 2 = 0. The discriminant is 9 + 16 = 25, so x = (3 ± 5)/4, giving x = 2 or x = -0.5",
                 IsFromStudent = true,
-                ContributesToProgress = true,
+                SignificantProgress = true,
                 IsOffTopic = false,
                 Timestamp = DateTime.UtcNow.AddDays(-2)
             }

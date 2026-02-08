@@ -1,5 +1,6 @@
 @page "/groups/{GroupId:int}"
 @attribute [Authorize]
+@using System.Text.Json
 @using Microsoft.AspNetCore.SignalR.Client
 @using ProgressPath.Models
 @using ProgressPath.Data
@@ -114,12 +115,15 @@
 
                         <StudentRow @key="session.Id"
                                     Session="session"
+                                    CurrentProgress="session.CurrentProgress"
+                                    IsCompleted="session.IsCompleted"
                                     GoalType="group.GoalType"
                                     TotalSteps="group.TotalSteps"
                                     ActiveAlert="alert"
                                     IsExpanded="isExpanded"
                                     OnToggleExpansion="() => ToggleExpansion(session.Id)"
-                                    OnResolveAlert="HandleResolveAlert" />
+                                    OnResolveAlert="HandleResolveAlert"
+                                    OnViewFullChat="HandleViewFullChat" />
                     }
                 </div>
             }
@@ -128,6 +132,21 @@
 </div>
 
 <ToastContainer Toasts="toasts" OnDismiss="RemoveToast" />
+
+@* Chat History Modal - rendered at page level to avoid CSS containment issues (REQ-DASH-016) *@
+@if (showChatModal && chatModalSession != null)
+{
+    <ChatHistoryModal SessionId="@chatModalSession.Id"
+                     Nickname="@chatModalSession.Nickname"
+                     GroupId="@GroupId"
+                     GoalType="@(group?.GoalType ?? GoalType.Binary)"
+                     TotalSteps="@group?.TotalSteps"
+                     CurrentProgress="@chatModalSession.CurrentProgress"
+                     IsCompleted="@chatModalSession.IsCompleted"
+                     IsVisible="true"
+                     IsEmbedded="false"
+                     OnClose="CloseChatModal" />
+}
 
 @code {
     /// <summary>
@@ -149,6 +168,10 @@
     private bool showQRCode = false;
     private HashSet<int> expandedStudents = new();
     private List<ToastMessage> toasts = new();
+
+    // Chat modal state
+    private bool showChatModal = false;
+    private StudentSession? chatModalSession;
 
     // SignalR connection
     private HubConnection? _hubConnection;
@@ -235,8 +258,10 @@
             try
             {
                 // Create SignalR hub connection
+                // Use internal URL for server-side connection (Docker runs on port 5000 internally)
+                var hubUrl = GetSignalRHubUrl();
                 _hubConnection = new HubConnectionBuilder()
-                    .WithUrl(NavigationManager.ToAbsoluteUri("/progresshub"))
+                    .WithUrl(hubUrl)
                     .WithAutomaticReconnect()
                     .Build();
 
@@ -266,13 +291,15 @@
         if (_hubConnection == null) return;
 
         // ReceiveProgress handler - updates student progress in real-time
-        _hubConnection.On<dynamic>("ReceiveProgress", (payload) =>
+        // Uses JsonElement because System.Text.Json (the default SignalR protocol) doesn't
+        // support dynamic member access on deserialized payloads.
+        _hubConnection.On<JsonElement>("ReceiveProgress", (payload) =>
         {
             try
             {
-                int sessionId = (int)payload.SessionId;
-                int progress = (int)payload.Progress;
-                bool isCompleted = (bool)payload.IsCompleted;
+                int sessionId = payload.GetProperty("SessionId").GetInt32();
+                int progress = payload.GetProperty("Progress").GetInt32();
+                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
 
                 var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
                 if (session != null)
@@ -289,15 +316,15 @@
         });
 
         // ReceiveAlert handler - adds new alerts to the dashboard
-        _hubConnection.On<dynamic>("ReceiveAlert", (payload) =>
+        _hubConnection.On<JsonElement>("ReceiveAlert", (payload) =>
         {
             try
             {
-                int alertId = (int)payload.Id;
-                int sessionId = (int)payload.SessionId;
-                string alertTypeStr = (string)payload.AlertType;
-                string nickname = (string)payload.Nickname;
-                DateTime createdAt = payload.CreatedAt;
+                int alertId = payload.GetProperty("Id").GetInt32();
+                int sessionId = payload.GetProperty("SessionId").GetInt32();
+                string alertTypeStr = payload.GetProperty("AlertType").GetString() ?? "";
+                string nickname = payload.GetProperty("Nickname").GetString() ?? "Unknown";
+                DateTime createdAt = payload.GetProperty("CreatedAt").GetDateTime();
 
                 // Parse alert type
                 if (!Enum.TryParse<AlertType>(alertTypeStr, out var alertType))
@@ -396,15 +423,15 @@
         });
 
         // StudentJoined handler - adds new student to the list
-        _hubConnection.On<dynamic>("StudentJoined", (payload) =>
+        _hubConnection.On<JsonElement>("StudentJoined", (payload) =>
         {
             try
             {
-                int id = (int)payload.Id;
-                string nickname = (string)payload.Nickname;
-                int currentProgress = (int)payload.CurrentProgress;
-                bool isCompleted = (bool)payload.IsCompleted;
-                DateTime joinedAt = payload.JoinedAt;
+                int id = payload.GetProperty("Id").GetInt32();
+                string nickname = payload.GetProperty("Nickname").GetString() ?? "Unknown";
+                int currentProgress = payload.GetProperty("CurrentProgress").GetInt32();
+                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
+                DateTime joinedAt = payload.GetProperty("JoinedAt").GetDateTime();
 
                 // Check if session already exists
                 if (sessions?.Any(s => s.Id == id) == true)
@@ -623,6 +650,47 @@
     private void ToggleQRCode()
     {
         showQRCode = !showQRCode;
+    }
+
+    /// <summary>
+    /// Opens the chat history modal for a specific student session.
+    /// </summary>
+    private void HandleViewFullChat(int sessionId)
+    {
+        chatModalSession = sessions?.FirstOrDefault(s => s.Id == sessionId);
+        if (chatModalSession != null)
+        {
+            showChatModal = true;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Closes the chat history modal.
+    /// </summary>
+    private void CloseChatModal()
+    {
+        showChatModal = false;
+        chatModalSession = null;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Gets the SignalR hub URL, handling Docker environment where internal port differs from external.
+    /// </summary>
+    private string GetSignalRHubUrl()
+    {
+        // In Docker, the server runs on port 5000 internally, but NavigationManager may return
+        // the host-mapped port (e.g., 5001). For server-side SignalR connections, use internal URL.
+        var environment = Configuration["ASPNETCORE_ENVIRONMENT"];
+        if (environment == "Development")
+        {
+            // In Docker dev environment, connect to internal port
+            return "http://localhost:5000/progresshub";
+        }
+
+        // For production or other environments, use NavigationManager
+        return NavigationManager.ToAbsoluteUri("/progresshub").ToString();
     }
 
     /// <summary>

@@ -15,9 +15,9 @@
     }
 
     @* Modal panel - slides in from right when modal, static when embedded *@
-    <div class="@GetContainerClasses()">
-        @* Modal Header *@
-        <div class="p-4 md:p-6" style="border-bottom: 1px solid rgba(34, 211, 216, 0.2);">
+    <div class="@GetContainerClasses()" style="@GetContainerStyles()" @onclick:stopPropagation="true">
+        @* Modal Header - clickable to close *@
+        <div class="p-4 md:p-6" style="border-bottom: 1px solid rgba(34, 211, 216, 0.2); cursor: pointer;" @onclick="HandleClose">
             <div class="flex items-center justify-between gap-4">
                 @* Student Info *@
                 <div class="flex items-center gap-3 min-w-0">
@@ -71,7 +71,7 @@
                     @* Close Button *@
                     @if (!IsEmbedded)
                     {
-                        <button class="modal-close-button" @onclick="HandleClose" title="Close">
+                        <button class="modal-close-button" @onclick="HandleClose" @onclick:stopPropagation="true" title="Close">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -121,7 +121,7 @@
                 @* Message Count Summary *@
                 <div class="mt-6 pt-4 text-center" style="border-top: 1px solid rgba(192, 132, 252, 0.15);">
                     <p class="text-xs opacity-50">
-                        @chatMessages.Count() messages • @chatMessages.Count(m => m.ContributesToProgress) contributed to progress
+                        @chatMessages.Count() messages • @chatMessages.Count(m => m.SignificantProgress) key milestones
                     </p>
                 </div>
             }
@@ -236,16 +236,8 @@
             return IsCompleted ? 100 : 0;
         }
 
-        var totalSteps = TotalSteps ?? 1;
-        if (totalSteps <= 0) return 0;
-
-        var percentage = (int)Math.Round(CurrentProgress * 100.0 / totalSteps);
-
-        // Ensure bounds
-        if (percentage > 100) percentage = 100;
-        if (percentage < 0) percentage = 0;
-
-        return percentage;
+        // CurrentProgress is already a percentage (0-100) for percentage goals
+        return Math.Clamp(CurrentProgress, 0, 100);
     }
 
     /// <summary>
@@ -261,7 +253,20 @@
         else
         {
             // Modal mode: fixed position, slide-in animation
-            return "chat-history-modal fixed inset-y-0 right-0 w-full md:w-2/3 lg:w-1/2 z-50 flex flex-col";
+            return "chat-history-modal flex flex-col";
+        }
+    }
+
+    private string GetContainerStyles()
+    {
+        if (IsEmbedded)
+        {
+            return "";
+        }
+        else
+        {
+            // Fixed position anchored to top-right, full height
+            return "position: fixed; top: 0; right: 0; bottom: 0; width: 50%; min-width: 400px; max-width: 800px; z-index: 50;";
         }
     }
 

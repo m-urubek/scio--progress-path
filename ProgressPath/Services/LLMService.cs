@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using LlmTornado;
 using LlmTornado.Chat;
@@ -153,18 +154,11 @@ public class LLMService : ILLMService
 
                 var chatResponse = ParseChatResponse(response);
 
-                // Validate progress increment doesn't exceed remaining steps
-                var maxProgress = (context.TotalSteps ?? 1) - context.CurrentProgress;
-                if (chatResponse.ProgressIncrement > maxProgress)
-                {
-                    chatResponse.ProgressIncrement = maxProgress;
-                }
-
                 _logger.LogDebug(
-                    "Chat response: ProgressIncrement={Progress}, IsOffTopic={OffTopic}, ContributesToProgress={Contributes}",
-                    chatResponse.ProgressIncrement,
+                    "Chat response: OverallProgress={Progress}, IsOffTopic={OffTopic}, SignificantProgress={Significant}",
+                    chatResponse.OverallProgress,
                     chatResponse.IsOffTopic,
-                    chatResponse.ContributesToProgress);
+                    chatResponse.SignificantProgress);
 
                 return chatResponse;
             }, "Student message processing");
@@ -231,7 +225,8 @@ public class LLMService : ILLMService
             {
                 GoalType = goalType,
                 Steps = parsed.Steps ?? new List<string>(),
-                WelcomeMessage = parsed.WelcomeMessage ?? "Welcome! Let's work on your learning goal together."
+                WelcomeMessage = parsed.WelcomeMessage ?? "Welcome! Let's work on your learning goal together.",
+                InitialGuidance = parsed.InitialGuidance ?? "Let's get started! What would you like to work on first?"
             };
         }
         catch (JsonException ex)
@@ -267,11 +262,22 @@ public class LLMService : ILLMService
                 return ChatResponse.CreateSuccess(response);
             }
 
+            // If the parsed Message is null or empty, the LLM returned malformed JSON
+            // (e.g. bare "{}"). Throw so the retry logic can attempt again.
+            if (string.IsNullOrWhiteSpace(parsed.Message))
+            {
+                _logger.LogWarning(
+                    "LLM returned JSON with null/empty message field. Raw response: {Response}",
+                    response.Length > 200 ? response[..200] + "..." : response);
+                throw new LLMServiceException(
+                    "LLM returned a JSON response with no message content");
+            }
+
             return ChatResponse.CreateSuccess(
-                message: parsed.Message ?? response,
-                progressIncrement: Math.Max(0, parsed.ProgressIncrement),
+                message: parsed.Message,
+                overallProgress: Math.Clamp(parsed.OverallProgress, 0, 100),
                 isOffTopic: parsed.IsOffTopic,
-                contributesToProgress: parsed.ContributesToProgress);
+                significantProgress: parsed.SignificantProgress);
         }
         catch (JsonException ex)
         {
@@ -283,6 +289,8 @@ public class LLMService : ILLMService
     /// <summary>
     /// Builds the message history for the LLM request.
     /// REQ-AI-027: Handles conversation truncation if needed.
+    /// AI messages are wrapped in the expected JSON format so the LLM sees consistent
+    /// JSON responses in its own history (required since ResponseFormat = Json is enabled).
     /// </summary>
     private async Task BuildMessageHistoryForRequest(Conversation conversation, ChatContext context)
     {
@@ -314,7 +322,7 @@ public class LLMService : ILLMService
                 }
                 else
                 {
-                    conversation.AppendExampleChatbotOutput(msg.Content);
+                    conversation.AppendExampleChatbotOutput(WrapAsJsonResponse(msg.Content));
                 }
             }
         }
@@ -329,10 +337,37 @@ public class LLMService : ILLMService
                 }
                 else
                 {
-                    conversation.AppendExampleChatbotOutput(msg.Content);
+                    conversation.AppendExampleChatbotOutput(WrapAsJsonResponse(msg.Content));
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// JSON serializer options for wrapping AI messages in history.
+    /// Uses UnsafeRelaxedJsonEscaping to avoid escaping apostrophes and other common
+    /// characters (e.g. ' → \u0027), which would confuse the LLM into mimicking the escapes.
+    /// </summary>
+    private static readonly JsonSerializerOptions HistoryJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    /// <summary>
+    /// Wraps a plain-text AI message in the JSON response format the LLM expects.
+    /// This ensures the LLM sees consistent JSON in its own history when ResponseFormat = Json is enabled,
+    /// preventing it from returning bare {} responses due to format confusion.
+    /// </summary>
+    private static string WrapAsJsonResponse(string message)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            message,
+            overallProgress = 0,
+            isOffTopic = false,
+            significantProgress = false
+        }, HistoryJsonOptions);
     }
 
     /// <summary>
@@ -436,14 +471,15 @@ public class LLMService : ILLMService
         public string? GoalType { get; set; }
         public List<string>? Steps { get; set; }
         public string? WelcomeMessage { get; set; }
+        public string? InitialGuidance { get; set; }
     }
 
     private class ChatResponseJson
     {
         public string? Message { get; set; }
-        public int ProgressIncrement { get; set; }
+        public int OverallProgress { get; set; }
         public bool IsOffTopic { get; set; }
-        public bool ContributesToProgress { get; set; }
+        public bool SignificantProgress { get; set; }
     }
 
     #endregion

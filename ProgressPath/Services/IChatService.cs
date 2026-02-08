@@ -16,7 +16,7 @@ public interface IChatService
     /// - Processing via LLM with full context (REQ-AI-025, REQ-AI-026)
     /// - Storing the AI response
     /// - Updating student progress (only increases, never decreases - REQ-GOAL-011)
-    /// - Flagging messages for progress contribution and off-topic status (REQ-AI-028, REQ-CHAT-006)
+    /// - Flagging significant milestones and off-topic status (REQ-AI-028, REQ-CHAT-006)
     /// - Goal completion detection (REQ-GOAL-013)
     /// </summary>
     /// <param name="sessionId">The student session ID.</param>
@@ -45,11 +45,20 @@ public interface IChatService
     Task<IEnumerable<ChatMessage>> GetChatHistoryAsync(int sessionId);
 
     /// <summary>
-    /// Retrieves messages that contributed to goal progress.
-    /// Returns only messages where ContributesToProgress = true.
+    /// Retrieves messages flagged as significant progress milestones.
+    /// Returns only messages where SignificantProgress = true.
     /// Used for teacher dashboard detail view (REQ-DASH-015).
     /// </summary>
     /// <param name="sessionId">The student session ID.</param>
     /// <returns>Progress-contributing messages in chronological order.</returns>
     Task<IEnumerable<ChatMessage>> GetProgressMessagesAsync(int sessionId);
+
+    /// <summary>
+    /// Creates the initial AI guidance message for a new chat session.
+    /// This is the first message shown to the student, prompting them to start the first task.
+    /// Only creates the message if the chat is empty.
+    /// </summary>
+    /// <param name="sessionId">The student session ID.</param>
+    /// <returns>The created message, or null if chat already has messages.</returns>
+    Task<ChatMessage?> CreateInitialGuidanceMessageAsync(int sessionId);
 }

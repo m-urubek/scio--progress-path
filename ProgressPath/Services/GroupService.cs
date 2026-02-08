@@ -100,6 +100,7 @@ public class GroupService : IGroupService
             TotalSteps = interpretation.GoalType == GoalType.Percentage ? interpretation.TotalSteps : null,
             GoalInterpretation = JsonSerializer.Serialize(interpretation, JsonOptions),
             WelcomeMessage = interpretation.WelcomeMessage,
+            InitialGuidance = interpretation.InitialGuidance,
             IsConfirmed = false, // Group not joinable until teacher confirms (REQ-GROUP-010)
             CreatedAt = DateTime.UtcNow
         };
@@ -184,6 +185,7 @@ public class GroupService : IGroupService
         group.TotalSteps = interpretation.GoalType == GoalType.Percentage ? interpretation.TotalSteps : null;
         group.GoalInterpretation = JsonSerializer.Serialize(interpretation, JsonOptions);
         group.WelcomeMessage = interpretation.WelcomeMessage;
+        group.InitialGuidance = interpretation.InitialGuidance;
         group.IsConfirmed = false; // Keep unconfirmed until teacher approves new interpretation
 
         await _dbContext.SaveChangesAsync();

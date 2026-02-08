@@ -36,8 +36,8 @@ public class StudentSession
     public string DeviceId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of completed steps toward the goal.
-    /// For percentage goals: percentage = (CurrentProgress / TotalSteps) * 100.
+    /// Current progress toward the goal.
+    /// For percentage goals: stores the percentage directly (0-100).
     /// For binary goals: 0 = incomplete, 1 = complete.
     /// Progress can only increase, never decrease (REQ-GOAL-011).
     /// </summary>
@@ -73,6 +73,14 @@ public class StudentSession
     /// Null if no messages have been sent yet.
     /// </summary>
     public DateTime? LastActivityAt { get; set; }
+
+    /// <summary>
+    /// Timestamp when an inactivity warning message was sent to the student.
+    /// Used for two-step escalation: warning at 5 min, teacher alert at 10 min.
+    /// Null if no warning has been sent in the current inactivity period.
+    /// Reset when student resumes activity.
+    /// </summary>
+    public DateTime? InactivityWarningSentAt { get; set; }
 
     /// <summary>
     /// Timestamp when the student joined the group.

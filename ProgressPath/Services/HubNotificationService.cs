@@ -32,13 +32,9 @@ public class HubNotificationService : IHubNotificationService
     {
         var groupChannel = $"group_{groupId}";
         var studentChannel = $"student_{sessionId}";
-        var percentage = totalSteps > 0
-            ? (int)Math.Round(currentProgress * 100.0 / totalSteps)
-            : 0;
 
-        // Ensure percentage is bounded correctly
-        if (percentage > 100) percentage = 100;
-        if (percentage < 0) percentage = 0;
+        // For percentage goals, CurrentProgress already stores the percentage (0-100)
+        var percentage = Math.Clamp(currentProgress, 0, 100);
 
         var payload = new
         {
@@ -80,7 +76,8 @@ public class HubNotificationService : IHubNotificationService
             IsFromStudent = message.IsFromStudent,
             Timestamp = message.Timestamp,
             IsOffTopic = message.IsOffTopic,
-            ContributesToProgress = message.ContributesToProgress
+            SignificantProgress = message.SignificantProgress,
+            IsSystemMessage = message.IsSystemMessage
         };
 
         // Send to both channels in parallel
