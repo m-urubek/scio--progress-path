@@ -24,6 +24,14 @@ public partial class Login : ComponentBase
     /// </summary>
     private bool IsDevAuthEnabled => Configuration.GetValue<bool>("DevAuth:Enabled");
 
+    /// <summary>
+    /// Whether Google OAuth is configured (ClientId and ClientSecret are set).
+    /// When false, the Google sign-in button is hidden to avoid auth handler errors.
+    /// </summary>
+    private bool IsGoogleAuthConfigured =>
+        !string.IsNullOrEmpty(Configuration["GoogleAuth:ClientId"]) &&
+        !string.IsNullOrEmpty(Configuration["GoogleAuth:ClientSecret"]);
+
     protected override async Task OnInitializedAsync()
     {
         // Check if user is already authenticated
