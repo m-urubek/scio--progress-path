@@ -94,6 +94,10 @@ builder.Services.AddScoped<IAlertService, AlertService>();
 // Register Inactivity Monitor background service (REQ-AI-012 through REQ-AI-016)
 builder.Services.AddHostedService<InactivityMonitorService>();
 
+// Register Progress Event service for in-process Blazor component notifications
+// Must be Singleton so all components share the same event bus
+builder.Services.AddSingleton<IProgressEventService, ProgressEventService>();
+
 // Register Hub Notification service for SignalR broadcasts (REQ-RT-001 through REQ-RT-005)
 builder.Services.AddScoped<IHubNotificationService, HubNotificationService>();
 

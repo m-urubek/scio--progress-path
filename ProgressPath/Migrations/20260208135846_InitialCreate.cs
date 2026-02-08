@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -73,6 +73,7 @@ namespace ProgressPath.Migrations
                     HasActiveAlert = table.Column<bool>(type: "bit", nullable: false),
                     AlertType = table.Column<int>(type: "int", nullable: true),
                     LastActivityAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    InactivityWarningSentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     JoinedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -97,6 +98,7 @@ namespace ProgressPath.Migrations
                     IsFromStudent = table.Column<bool>(type: "bit", nullable: false),
                     SignificantProgress = table.Column<bool>(type: "bit", nullable: false),
                     IsOffTopic = table.Column<bool>(type: "bit", nullable: false),
+                    IsSystemMessage = table.Column<bool>(type: "bit", nullable: false),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>

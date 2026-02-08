@@ -6,19 +6,23 @@ namespace ProgressPath.Services;
 
 /// <summary>
 /// Service for broadcasting real-time updates to clients via SignalR.
+/// Also publishes to the in-process event service for Blazor Server components.
 /// Implements IHubNotificationService to provide a clean abstraction over IHubContext.
 /// REQ-RT-001: All real-time updates use SignalR.
 /// </summary>
 public class HubNotificationService : IHubNotificationService
 {
     private readonly IHubContext<ProgressHub> _hubContext;
+    private readonly IProgressEventService _progressEventService;
     private readonly ILogger<HubNotificationService> _logger;
 
     public HubNotificationService(
         IHubContext<ProgressHub> hubContext,
+        IProgressEventService progressEventService,
         ILogger<HubNotificationService> logger)
     {
         _hubContext = hubContext;
+        _progressEventService = progressEventService;
         _logger = logger;
     }
 
@@ -52,6 +56,16 @@ public class HubNotificationService : IHubNotificationService
                 .SendAsync(ProgressHub.ClientMethods.ReceiveProgress, payload),
             _hubContext.Clients.Group(studentChannel)
                 .SendAsync(ProgressHub.ClientMethods.ReceiveProgress, payload));
+
+        // Also publish to in-process event service for Blazor Server components
+        _progressEventService.PublishProgressUpdate(new ProgressUpdateEventArgs
+        {
+            SessionId = sessionId,
+            GroupId = groupId,
+            CurrentProgress = currentProgress,
+            TotalSteps = totalSteps,
+            IsCompleted = isCompleted
+        });
 
         _logger.LogDebug(
             "Sent progress update to channels {GroupChannel} and {StudentChannel}: Session {SessionId} at {Percentage}%",
@@ -100,18 +114,30 @@ public class HubNotificationService : IHubNotificationService
         var channelName = $"group_{groupId}";
 
         // Include nickname from the navigation property if available
+        var nickname = alert.StudentSession?.Nickname ?? "Unknown";
         var payload = new
         {
             Id = alert.Id,
             SessionId = alert.StudentSessionId,
             AlertType = alert.AlertType.ToString(),
             CreatedAt = alert.CreatedAt,
-            Nickname = alert.StudentSession?.Nickname ?? "Unknown"
+            Nickname = nickname
         };
 
         await _hubContext.Clients
             .Group(channelName)
             .SendAsync(ProgressHub.ClientMethods.ReceiveAlert, payload);
+
+        // Also publish to in-process event service for Blazor Server components
+        _progressEventService.PublishAlert(new AlertEventArgs
+        {
+            AlertId = alert.Id,
+            SessionId = alert.StudentSessionId,
+            GroupId = groupId,
+            AlertType = alert.AlertType.ToString(),
+            Nickname = nickname,
+            CreatedAt = alert.CreatedAt
+        });
 
         _logger.LogInformation(
             "Sent alert notification to {Channel}: Alert {AlertId} ({AlertType}) for session {SessionId}",
@@ -129,6 +155,13 @@ public class HubNotificationService : IHubNotificationService
         await _hubContext.Clients
             .Group(channelName)
             .SendAsync(ProgressHub.ClientMethods.AlertResolved, alertId);
+
+        // Also publish to in-process event service for Blazor Server components
+        _progressEventService.PublishAlertResolved(new AlertResolvedEventArgs
+        {
+            AlertId = alertId,
+            GroupId = groupId
+        });
 
         _logger.LogInformation(
             "Sent alert resolved notification to {Channel}: Alert {AlertId}",
@@ -169,6 +202,17 @@ public class HubNotificationService : IHubNotificationService
         await _hubContext.Clients
             .Group(channelName)
             .SendAsync(ProgressHub.ClientMethods.StudentJoined, payload);
+
+        // Also publish to in-process event service for Blazor Server components
+        _progressEventService.PublishStudentJoined(new StudentJoinedEventArgs
+        {
+            SessionId = session.Id,
+            GroupId = groupId,
+            Nickname = session.Nickname,
+            CurrentProgress = session.CurrentProgress,
+            IsCompleted = session.IsCompleted,
+            JoinedAt = session.JoinedAt
+        });
 
         _logger.LogInformation(
             "Sent student joined notification to {Channel}: {Nickname} (Session {SessionId})",

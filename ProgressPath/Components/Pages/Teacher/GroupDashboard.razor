@@ -1,11 +1,9 @@
 @page "/groups/{GroupId:int}"
 @attribute [Authorize]
-@using System.Text.Json
-@using Microsoft.AspNetCore.SignalR.Client
 @using ProgressPath.Models
 @using ProgressPath.Data
 @using Microsoft.EntityFrameworkCore
-@implements IAsyncDisposable
+@implements IDisposable
 @inject IGroupService GroupService
 @inject IStudentSessionService StudentSessionService
 @inject IAlertService AlertService
@@ -13,6 +11,7 @@
 @inject IAuthenticationService AuthService
 @inject IQRCodeService QRCodeService
 @inject IHubNotificationService HubNotificationService
+@inject IProgressEventService ProgressEventService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
 @inject IConfiguration Configuration
@@ -173,16 +172,16 @@
     private bool showChatModal = false;
     private StudentSession? chatModalSession;
 
-    // SignalR connection
-    private HubConnection? _hubConnection;
-    private CancellationTokenSource? _disposalTokenSource;
+    // Event handlers for cleanup
+    private bool _eventsSubscribed = false;
 
     /// <summary>
     /// Loads the group data and initializes the dashboard.
     /// </summary>
     protected override async Task OnInitializedAsync()
     {
-        _disposalTokenSource = new CancellationTokenSource();
+        // Subscribe to in-process events for real-time updates
+        SubscribeToEvents();
 
         try
         {
@@ -236,6 +235,8 @@
             var baseUrl = Configuration["ApplicationBaseUrl"] ?? NavigationManager.BaseUri.TrimEnd('/');
             joinUrl = $"{baseUrl}/join/{group.JoinCode}";
             qrCodeDataUri = QRCodeService.GenerateQRCodeBase64(joinUrl);
+
+            Logger.LogInformation("Dashboard initialized for group {GroupId}, subscribed to events", GroupId);
         }
         catch (Exception ex)
         {
@@ -249,300 +250,157 @@
     }
 
     /// <summary>
-    /// Initializes the SignalR connection after the first render.
+    /// Subscribes to in-process progress events.
     /// </summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private void SubscribeToEvents()
     {
-        if (firstRender && group != null)
+        if (_eventsSubscribed) return;
+
+        ProgressEventService.OnProgressUpdate += HandleProgressUpdate;
+        ProgressEventService.OnStudentJoined += HandleStudentJoined;
+        ProgressEventService.OnAlert += HandleAlert;
+        ProgressEventService.OnAlertResolved += HandleAlertResolved;
+        _eventsSubscribed = true;
+    }
+
+    /// <summary>
+    /// Unsubscribes from in-process progress events.
+    /// </summary>
+    private void UnsubscribeFromEvents()
+    {
+        if (!_eventsSubscribed) return;
+
+        ProgressEventService.OnProgressUpdate -= HandleProgressUpdate;
+        ProgressEventService.OnStudentJoined -= HandleStudentJoined;
+        ProgressEventService.OnAlert -= HandleAlert;
+        ProgressEventService.OnAlertResolved -= HandleAlertResolved;
+        _eventsSubscribed = false;
+    }
+
+    /// <summary>
+    /// Handles progress update events from the event service.
+    /// </summary>
+    private void HandleProgressUpdate(object? sender, ProgressUpdateEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        var session = sessions?.FirstOrDefault(s => s.Id == e.SessionId);
+        if (session != null)
         {
-            try
-            {
-                // Create SignalR hub connection
-                // Use internal URL for server-side connection (Docker runs on port 5000 internally)
-                var hubUrl = GetSignalRHubUrl();
-                _hubConnection = new HubConnectionBuilder()
-                    .WithUrl(hubUrl)
-                    .WithAutomaticReconnect()
-                    .Build();
+            session.CurrentProgress = e.CurrentProgress;
+            session.IsCompleted = e.IsCompleted;
+            InvokeAsync(StateHasChanged);
 
-                // Register event handlers
-                RegisterHubEventHandlers();
-
-                // Start the connection
-                await _hubConnection.StartAsync(_disposalTokenSource?.Token ?? CancellationToken.None);
-
-                // Join the group channel
-                await _hubConnection.InvokeAsync("JoinGroupChannel", group.Id.ToString());
-
-                Logger.LogInformation("Connected to SignalR hub for group {GroupId}", group.Id);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to connect to SignalR hub");
-            }
+            Logger.LogDebug(
+                "Updated progress for session {SessionId}: {Progress}% (completed: {IsCompleted})",
+                e.SessionId, e.CurrentProgress, e.IsCompleted);
         }
     }
 
     /// <summary>
-    /// Registers all SignalR event handlers.
+    /// Handles student joined events from the event service.
     /// </summary>
-    private void RegisterHubEventHandlers()
+    private void HandleStudentJoined(object? sender, StudentJoinedEventArgs e)
     {
-        if (_hubConnection == null) return;
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
 
-        // ReceiveProgress handler - updates student progress in real-time
-        // Uses JsonElement because System.Text.Json (the default SignalR protocol) doesn't
-        // support dynamic member access on deserialized payloads.
-        _hubConnection.On<JsonElement>("ReceiveProgress", (payload) =>
+        // Check if session already exists
+        if (sessions?.Any(s => s.Id == e.SessionId) == true) return;
+
+        var newSession = new StudentSession
         {
-            try
-            {
-                int sessionId = payload.GetProperty("SessionId").GetInt32();
-                int progress = payload.GetProperty("Progress").GetInt32();
-                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
-
-                var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
-                if (session != null)
-                {
-                    session.CurrentProgress = progress;
-                    session.IsCompleted = isCompleted;
-                    InvokeAsync(StateHasChanged);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error handling ReceiveProgress event");
-            }
-        });
-
-        // ReceiveAlert handler - adds new alerts to the dashboard
-        _hubConnection.On<JsonElement>("ReceiveAlert", (payload) =>
-        {
-            try
-            {
-                int alertId = payload.GetProperty("Id").GetInt32();
-                int sessionId = payload.GetProperty("SessionId").GetInt32();
-                string alertTypeStr = payload.GetProperty("AlertType").GetString() ?? "";
-                string nickname = payload.GetProperty("Nickname").GetString() ?? "Unknown";
-                DateTime createdAt = payload.GetProperty("CreatedAt").GetDateTime();
-
-                // Parse alert type
-                if (!Enum.TryParse<AlertType>(alertTypeStr, out var alertType))
-                {
-                    Logger.LogWarning("Unknown alert type: {AlertType}", alertTypeStr);
-                    return;
-                }
-
-                // Create alert object
-                var alert = new HelpAlert
-                {
-                    Id = alertId,
-                    StudentSessionId = sessionId,
-                    AlertType = alertType,
-                    CreatedAt = createdAt,
-                    IsResolved = false
-                };
-
-                // Update session alerts map
-                sessionAlerts[sessionId] = alert;
-
-                // Update session's HasActiveAlert
-                var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
-                if (session != null)
-                {
-                    session.HasActiveAlert = true;
-                    session.AlertType = alertType;
-                }
-
-                // Add toast notification (REQ-DASH-013)
-                var alertTypeDisplay = alertType == AlertType.Inactivity ? "Inactivity" : "Off-topic";
-                toasts.Add(new ToastMessage
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Message = $"New Alert: {nickname} - {alertTypeDisplay}",
-                    Type = "alert",
-                    Nickname = nickname,
-                    CreatedAt = DateTime.UtcNow
-                });
-
-                InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error handling ReceiveAlert event");
-            }
-        });
-
-        // AlertResolved handler - removes resolved alerts from display
-        _hubConnection.On<int>("AlertResolved", (alertId) =>
-        {
-            try
-            {
-                // Find and remove alert from sessionAlerts
-                var sessionId = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == alertId).Key;
-                if (sessionId != 0)
-                {
-                    sessionAlerts[sessionId] = null;
-
-                    var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
-                    if (session != null)
-                    {
-                        session.HasActiveAlert = false;
-                        session.AlertType = null;
-                    }
-                }
-
-                InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error handling AlertResolved event");
-            }
-        });
-
-        // StudentResumedActivity handler - shows toast notification (REQ-DASH-012, REQ-AI-017)
-        _hubConnection.On<string>("StudentResumedActivity", (nickname) =>
-        {
-            try
-            {
-                toasts.Add(new ToastMessage
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Message = $"{nickname} has resumed activity",
-                    Type = "resumed",
-                    Nickname = nickname,
-                    CreatedAt = DateTime.UtcNow
-                });
-
-                InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error handling StudentResumedActivity event");
-            }
-        });
-
-        // StudentJoined handler - adds new student to the list
-        _hubConnection.On<JsonElement>("StudentJoined", (payload) =>
-        {
-            try
-            {
-                int id = payload.GetProperty("Id").GetInt32();
-                string nickname = payload.GetProperty("Nickname").GetString() ?? "Unknown";
-                int currentProgress = payload.GetProperty("CurrentProgress").GetInt32();
-                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
-                DateTime joinedAt = payload.GetProperty("JoinedAt").GetDateTime();
-
-                // Check if session already exists
-                if (sessions?.Any(s => s.Id == id) == true)
-                {
-                    return;
-                }
-
-                var newSession = new StudentSession
-                {
-                    Id = id,
-                    Nickname = nickname,
-                    CurrentProgress = currentProgress,
-                    IsCompleted = isCompleted,
-                    JoinedAt = joinedAt,
-                    GroupId = GroupId
-                };
-
-                // Add to sessions list
-                var sessionsList = sessions?.ToList() ?? new List<StudentSession>();
-                sessionsList.Add(newSession);
-                sessions = sessionsList;
-
-                InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error handling StudentJoined event");
-            }
-        });
-
-        // Handle reconnecting state (REQ-RT-002)
-        _hubConnection.Reconnecting += (exception) =>
-        {
-            Logger.LogWarning(
-                exception,
-                "SignalR connection lost for group dashboard {GroupId}, attempting to reconnect...",
-                GroupId);
-
-            return Task.CompletedTask;
+            Id = e.SessionId,
+            Nickname = e.Nickname,
+            CurrentProgress = e.CurrentProgress,
+            IsCompleted = e.IsCompleted,
+            JoinedAt = e.JoinedAt,
+            GroupId = GroupId
         };
 
-        // Handle reconnection - re-join channel and refresh data
-        _hubConnection.Reconnected += async (connectionId) =>
+        var sessionsList = sessions?.ToList() ?? new List<StudentSession>();
+        sessionsList.Add(newSession);
+        sessions = sessionsList;
+
+        InvokeAsync(StateHasChanged);
+
+        Logger.LogDebug("Added new student {Nickname} to dashboard", e.Nickname);
+    }
+
+    /// <summary>
+    /// Handles alert events from the event service.
+    /// </summary>
+    private void HandleAlert(object? sender, AlertEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        // Parse alert type
+        if (!Enum.TryParse<AlertType>(e.AlertType, out var alertType))
         {
-            Logger.LogInformation(
-                "SignalR reconnected for group dashboard {GroupId}, connection {ConnectionId}",
-                GroupId,
-                connectionId);
+            Logger.LogWarning("Unknown alert type: {AlertType}", e.AlertType);
+            return;
+        }
 
-            try
-            {
-                // Re-join the group channel
-                await _hubConnection.InvokeAsync("JoinGroupChannel", group!.Id.ToString());
-
-                // Refresh sessions and alerts from database
-                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-
-                // Reload sessions
-                var refreshedSessions = await dbContext.StudentSessions
-                    .Where(s => s.GroupId == GroupId)
-                    .AsNoTracking()
-                    .ToListAsync();
-                sessions = refreshedSessions;
-
-                // Reload unresolved alerts
-                unresolvedAlerts = await AlertService.GetUnresolvedAlertsAsync(GroupId);
-
-                // Rebuild session alerts map
-                BuildSessionAlertsMap();
-
-                // Update session HasActiveAlert flags
-                foreach (var session in sessions)
-                {
-                    var alert = GetSessionAlert(session.Id);
-                    session.HasActiveAlert = alert != null;
-                    session.AlertType = alert?.AlertType;
-                }
-
-                await InvokeAsync(StateHasChanged);
-
-                Logger.LogInformation(
-                    "State restored after reconnection for group {GroupId}: {SessionCount} sessions, {AlertCount} alerts",
-                    GroupId,
-                    sessions.Count(),
-                    unresolvedAlerts?.Count() ?? 0);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error restoring state after reconnection for group {GroupId}", GroupId);
-            }
+        // Create alert object
+        var alert = new HelpAlert
+        {
+            Id = e.AlertId,
+            StudentSessionId = e.SessionId,
+            AlertType = alertType,
+            CreatedAt = e.CreatedAt,
+            IsResolved = false
         };
 
-        // Handle permanent connection loss
-        _hubConnection.Closed += (exception) =>
-        {
-            if (exception != null)
-            {
-                Logger.LogError(
-                    exception,
-                    "SignalR connection permanently closed for group dashboard {GroupId}",
-                    GroupId);
-            }
-            else
-            {
-                Logger.LogInformation(
-                    "SignalR connection closed for group dashboard {GroupId}",
-                    GroupId);
-            }
+        // Update session alerts map
+        sessionAlerts[e.SessionId] = alert;
 
-            return Task.CompletedTask;
-        };
+        // Update session's HasActiveAlert
+        var session = sessions?.FirstOrDefault(s => s.Id == e.SessionId);
+        if (session != null)
+        {
+            session.HasActiveAlert = true;
+            session.AlertType = alertType;
+        }
+
+        // Add toast notification
+        var alertTypeDisplay = alertType == AlertType.Inactivity ? "Inactivity" : "Off-topic";
+        toasts.Add(new ToastMessage
+        {
+            Id = Guid.NewGuid().ToString(),
+            Message = $"New Alert: {e.Nickname} - {alertTypeDisplay}",
+            Type = "alert",
+            Nickname = e.Nickname,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Handles alert resolved events from the event service.
+    /// </summary>
+    private void HandleAlertResolved(object? sender, AlertResolvedEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        // Find and remove alert from sessionAlerts
+        var sessionId = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == e.AlertId).Key;
+        if (sessionId != 0)
+        {
+            sessionAlerts[sessionId] = null;
+
+            var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+            if (session != null)
+            {
+                session.HasActiveAlert = false;
+                session.AlertType = null;
+            }
+        }
+
+        InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -676,24 +534,6 @@
     }
 
     /// <summary>
-    /// Gets the SignalR hub URL, handling Docker environment where internal port differs from external.
-    /// </summary>
-    private string GetSignalRHubUrl()
-    {
-        // In Docker, the server runs on port 5000 internally, but NavigationManager may return
-        // the host-mapped port (e.g., 5001). For server-side SignalR connections, use internal URL.
-        var environment = Configuration["ASPNETCORE_ENVIRONMENT"];
-        if (environment == "Development")
-        {
-            // In Docker dev environment, connect to internal port
-            return "http://localhost:5000/progresshub";
-        }
-
-        // For production or other environments, use NavigationManager
-        return NavigationManager.ToAbsoluteUri("/progresshub").ToString();
-    }
-
-    /// <summary>
     /// Navigates back to the groups list.
     /// </summary>
     private void NavigateToGroups()
@@ -702,24 +542,11 @@
     }
 
     /// <summary>
-    /// Disposes the SignalR connection when the component is disposed.
+    /// Disposes event subscriptions when the component is disposed.
     /// </summary>
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
-        _disposalTokenSource?.Cancel();
-        _disposalTokenSource?.Dispose();
-
-        if (_hubConnection != null)
-        {
-            try
-            {
-                await _hubConnection.InvokeAsync("LeaveChannels");
-                await _hubConnection.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Error disposing SignalR connection");
-            }
-        }
+        UnsubscribeFromEvents();
+        Logger.LogDebug("GroupDashboard disposed, unsubscribed from events for group {GroupId}", GroupId);
     }
 }

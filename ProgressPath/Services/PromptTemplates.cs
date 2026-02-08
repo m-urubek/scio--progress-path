@@ -115,10 +115,11 @@ OFF-TOPIC CLASSIFICATION (BE LENIENT):
 - When in doubt, classify as ON-TOPIC.
 
 SIGNIFICANT PROGRESS:
-- Set significantProgress to true ONLY for major milestones worth highlighting to the teacher.
-- Examples: completing an entire task, making a key breakthrough, or demonstrating mastery of a concept.
-- Routine intermediate steps (identifying coefficients, asking questions, partial calculations) should be false.
-- This controls what appears in the teacher's ""Key Progress Messages"" list, so be selective.
+- Set significantProgress to true when the student COMPLETES any of the numbered tasks listed above.
+- IMPORTANT: EVERY task completion is significant, not just the first one. If the student finishes task 1, task 2, task 3, ... — EACH completion should have significantProgress=true.
+- To determine if a task is complete: the student must provide the FINAL ANSWER/SOLUTION for that specific task (e.g., the roots of an equation, the finished code, the complete exercise solution, ...).
+- DO NOT mark as significant: intermediate steps that don't lead forwards very much, student asking you for clarifications, ""ok"", and so on...
+- This controls what appears in the teacher's ""Key Progress Messages"" list — teachers need to see EACH task completion.
 
 RESPONSE FORMAT:
 You MUST respond with valid JSON in exactly this format:
@@ -133,7 +134,7 @@ Fields:
 - message: Your guidance/response to the student (in English)
 - overallProgress: The student's new TOTAL progress percentage (0-100). Must be >= {currentProgress}. Keep at {currentProgress} if no new progress was made.
 - isOffTopic: true only if the message is clearly unrelated to the goal
-- significantProgress: true only for major milestones the teacher should see (completing a task, key breakthroughs)";
+- significantProgress: true only for major milestones the teacher should see (key breakthroughs, significant shift towards the goal, important realization, ...) and alway true when the student completes ANY of the numbered tasks (each task completion counts!).";
 
     /// <summary>
     /// System prompt for conversation summarization when history exceeds limits.
