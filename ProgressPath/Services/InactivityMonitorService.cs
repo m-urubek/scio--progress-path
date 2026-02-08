@@ -146,6 +146,12 @@ public class InactivityMonitorService : BackgroundService
 
                         if (alert != null)
                         {
+                            // Set navigation property for nickname in notification payload
+                            alert.StudentSession = session;
+                            
+                            // Notify teacher via SignalR and in-process events
+                            await hubNotificationService.NotifyAlertAsync(session.GroupId, alert);
+
                             _logger.LogInformation(
                                 "Created inactivity alert for session {SessionId} (student '{Nickname}') - inactive for {Minutes} minutes",
                                 session.Id, session.Nickname, inactiveMinutes);

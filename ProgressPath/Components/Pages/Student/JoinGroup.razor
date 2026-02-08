@@ -2,6 +2,7 @@
 @attribute [AllowAnonymous]
 @inject IGroupService GroupService
 @inject IStudentSessionService StudentSessionService
+@inject IHubNotificationService HubNotificationService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
@@ -206,6 +207,14 @@
                 nickname.Trim(),
                 deviceId
             );
+
+            // Notify the teacher dashboard if this is a newly created session
+            // (JoinGroupAsync returns existing sessions for device-bound restoration)
+            var isNewSession = createdSession.JoinedAt > DateTime.UtcNow.AddSeconds(-10);
+            if (isNewSession && group != null)
+            {
+                await HubNotificationService.NotifyStudentJoinedAsync(group.Id, createdSession);
+            }
 
             NavigateToChat(createdSession.Id);
         }

@@ -6,6 +6,7 @@
 @using ProgressPath.Data
 @using ProgressPath.Hubs
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IChatService ChatService
 @inject IStudentSessionService StudentSessionService
@@ -62,18 +63,34 @@
         case PageState.Active:
             @if (session != null && group != null)
             {
-                @* Chat Header with Progress *@
+                @* Chat Header with Progress - expands when at top of chat, collapses when scrolled *@
                 <div class="flex-shrink-0 px-4 pt-4" style="background: var(--color-dark-bg); backdrop-filter: blur(8px);">
                     <div class="chat-header glow-container p-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                             @* Group Info - shows welcome message (task list) from AI *@
                             <div class="flex-1 min-w-0">
                                 <h1 class="text-lg font-semibold gradient-text truncate">
                                     @group.Name
                                 </h1>
-                                <p class="text-sm opacity-75 line-clamp-2">
+                                <p class="text-sm opacity-75 @(isHeaderExpanded ? "" : "line-clamp-2") transition-all duration-300">
                                     @(group.WelcomeMessage ?? group.GoalDescription)
                                 </p>
+                                @if (!isHeaderExpanded && HasLongDescription())
+                                {
+                                    <button @onclick="ToggleHeaderExpanded" 
+                                            class="text-xs mt-1 opacity-60 hover:opacity-100 transition-opacity"
+                                            style="color: var(--color-tertiary);">
+                                        Show more ▼
+                                    </button>
+                                }
+                                else if (isHeaderExpanded && HasLongDescription())
+                                {
+                                    <button @onclick="ToggleHeaderExpanded" 
+                                            class="text-xs mt-1 opacity-60 hover:opacity-100 transition-opacity"
+                                            style="color: var(--color-tertiary);">
+                                        Show less ▲
+                                    </button>
+                                }
                             </div>
 
                             @* Progress Indicator *@
@@ -107,7 +124,7 @@
                 }
 
                 @* Chat Messages Area - initial guidance is now a real message stored in DB *@
-                <div class="flex-1" style="overflow-y: auto; min-height: 0;">
+                <div id="chat-scroll-container" class="flex-1" style="overflow-y: auto; min-height: 0;">
                     <ChatMessageList Messages="messages" IsStudentView="true" />
                 </div>
 
@@ -144,6 +161,11 @@
     private List<ChatMessage> messages = new();
     private bool isSending = false;
     private string? errorMessage;
+    
+    // Header expand/collapse state
+    private bool isHeaderExpanded = true;  // Start expanded when at top
+    private bool manuallyToggled = false;  // Track if user manually toggled
+    private DotNetObjectReference<StudentChat>? dotNetHelper;
 
     // SignalR connection
     private HubConnection? hubConnection;
@@ -213,7 +235,7 @@
     }
 
     /// <summary>
-    /// Initialize SignalR connection after first render.
+    /// Initialize SignalR connection and JS interop after first render.
     /// JS interop is only available after render in Blazor Server.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -222,6 +244,10 @@
         {
             try
             {
+                // Initialize header expand/collapse JS interop
+                dotNetHelper = DotNetObjectReference.Create(this);
+                await JSRuntime.InvokeVoidAsync("chatHeaderInterop.initialize", dotNetHelper, "chat-scroll-container");
+                
                 // Create SignalR hub connection
                 // Use internal URL for server-side connection (Docker runs on port 5000 internally)
                 var hubUrl = GetSignalRHubUrl();
@@ -246,6 +272,42 @@
                 Logger.LogError(ex, "Failed to connect to SignalR hub for session {SessionId}", SessionId);
             }
         }
+    }
+    
+    /// <summary>
+    /// Called by JS interop when scroll position changes.
+    /// Updates header expanded state based on whether user is at top of chat.
+    /// </summary>
+    [JSInvokable]
+    public void UpdateHeaderExpandedState(bool isAtTop)
+    {
+        // If user manually toggled, don't auto-change state
+        if (manuallyToggled) return;
+        
+        if (isHeaderExpanded != isAtTop)
+        {
+            isHeaderExpanded = isAtTop;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    /// <summary>
+    /// Manually toggle the header expanded state.
+    /// </summary>
+    private void ToggleHeaderExpanded()
+    {
+        isHeaderExpanded = !isHeaderExpanded;
+        manuallyToggled = true;  // User took control, disable auto-toggle
+    }
+    
+    /// <summary>
+    /// Check if the description is long enough to warrant expand/collapse.
+    /// </summary>
+    private bool HasLongDescription()
+    {
+        var description = group?.WelcomeMessage ?? group?.GoalDescription;
+        // Roughly 2 lines at typical width is ~100-150 chars, so show button if longer
+        return !string.IsNullOrEmpty(description) && description.Length > 120;
     }
 
     /// <summary>
@@ -581,12 +643,28 @@
     }
 
     /// <summary>
-    /// Disposes SignalR connection and cleanup resources.
+    /// Disposes SignalR connection, JS interop, and cleanup resources.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
         disposalTokenSource?.Cancel();
         disposalTokenSource?.Dispose();
+        
+        // Dispose JS interop
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("chatHeaderInterop.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Expected during circuit disconnection
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Error disposing chat header JS interop for session {SessionId}", SessionId);
+        }
+        
+        dotNetHelper?.Dispose();
 
         if (hubConnection != null)
         {

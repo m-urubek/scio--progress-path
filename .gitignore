@@ -6,7 +6,6 @@ obj/
 
 # IDE and editor files
 .vs/
-.vscode/
 .idea/
 *.user
 *.suo
@@ -50,6 +49,9 @@ package-lock.json
 
 # Compiled TypeScript output (generated from wwwroot/ts/ sources)
 ProgressPath/wwwroot/js/
+
+# Compiled Tailwind CSS output (generated from wwwroot/css/app.src.css)
+ProgressPath/wwwroot/css/app.css
 
 # Core dumps
 core

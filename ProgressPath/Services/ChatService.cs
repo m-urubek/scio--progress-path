@@ -240,6 +240,15 @@ public class ChatService : IChatService
                     session.HasActiveAlert = true;
                     session.AlertType = AlertType.OffTopic;
 
+                    // Save to get the alert ID before notifying
+                    await _dbContext.SaveChangesAsync();
+
+                    // Set navigation property for nickname in notification payload
+                    alert.StudentSession = session;
+
+                    // Notify teacher via SignalR and in-process events
+                    await _hubNotificationService.NotifyAlertAsync(session.GroupId, alert);
+
                     _logger.LogInformation(
                         "Created off-topic alert for session {SessionId}",
                         session.Id);

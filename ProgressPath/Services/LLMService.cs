@@ -128,22 +128,28 @@ public class LLMService : ILLMService
                     ResponseFormat = ChatRequestResponseFormats.Json
                 });
 
-                // Build system prompt with context
-                var systemPrompt = PromptTemplates.BuildStudentGuidancePrompt(
+                // Build message history (no system message - we inject instructions with the user message)
+                await BuildMessageHistoryForRequest(conversation, context);
+
+                // Generate a unique boundary token to prevent prompt injection attacks
+                var boundary = $"MSG_{Guid.NewGuid():N}";
+
+                // Inject full system prompt with the user message
+                // This leverages recency bias to ensure the model pays attention to instructions
+                var injectedPrompt = PromptTemplates.BuildInjectedSystemPrompt(
                     context.GoalDescription,
                     context.GoalType.ToString(),
                     context.StepDescriptions,
                     context.CurrentProgress,
-                    context.TotalSteps ?? 1,
-                    context.OffTopicWarningCount);
+                    context.OffTopicWarningCount,
+                    boundary);
 
-                conversation.AppendSystemMessage(systemPrompt);
+                // Escape XML characters in student message to prevent injection
+                var sanitizedMessage = PromptTemplates.EscapeUserInput(studentMessage);
+                var closingTag = PromptTemplates.BuildStudentMessageClosingTag(boundary);
 
-                // Build message history
-                await BuildMessageHistoryForRequest(conversation, context);
-
-                // Add the new student message
-                conversation.AppendUserInput(studentMessage);
+                var enhancedMessage = $"{injectedPrompt}\n{sanitizedMessage}\n{closingTag}";
+                conversation.AppendUserInput(enhancedMessage);
 
                 var response = await conversation.GetResponse();
 
