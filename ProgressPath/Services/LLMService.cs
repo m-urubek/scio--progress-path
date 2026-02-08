@@ -64,7 +64,8 @@ public class LLMService : ILLMService
         {
             var conversation = _api.Chat.CreateConversation(new ChatRequest
             {
-                Model = _model
+                Model = _model,
+                ResponseFormat = ChatRequestResponseFormats.Json
             });
 
             conversation.AppendSystemMessage(PromptTemplates.GOAL_INTERPRETATION_SYSTEM_PROMPT);
@@ -122,7 +123,8 @@ public class LLMService : ILLMService
             {
                 var conversation = _api.Chat.CreateConversation(new ChatRequest
                 {
-                    Model = _model
+                    Model = _model,
+                    ResponseFormat = ChatRequestResponseFormats.Json
                 });
 
                 // Build system prompt with context

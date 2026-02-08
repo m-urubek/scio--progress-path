@@ -19,30 +19,22 @@
 @inject IDbContextFactory<ProgressPathDbContext> DbContextFactory
 @inject ILogger<GroupDashboard> Logger
 
-<PageTitle>@(group?.Name ?? "Group Dashboard") - Progress Path</PageTitle>
+<PageTitle>@(group != null ? group.Name + " - Progress Path" : "Group Dashboard - Progress Path")</PageTitle>
 
 <div class="container mx-auto py-8 px-4">
-    <!-- Header Section -->
     <div class="mb-6">
-        <a href="/groups" class="text-sm opacity-75 hover:opacity-100 transition">
-            ← Back to Groups
-        </a>
+        <a href="/groups" class="text-sm opacity-75 hover:opacity-100 transition">← Back to Groups</a>
     </div>
 
-    <!-- Loading State -->
     @if (isLoading)
     {
         <div class="glow-container p-8 text-center">
             <div class="flex items-center justify-center gap-3">
-                <svg class="animate-spin h-6 w-6" style="color: var(--color-tertiary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <div class="animate-spin h-6 w-6 rounded-full" style="border: 3px solid rgba(34, 211, 216, 0.3); border-top-color: var(--color-tertiary);"></div>
                 <p class="text-lg opacity-75">Loading dashboard...</p>
             </div>
         </div>
     }
-    <!-- Error State -->
     else if (!string.IsNullOrEmpty(errorMessage))
     {
         <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
@@ -52,7 +44,6 @@
             </button>
         </div>
     }
-    <!-- Dashboard Content -->
     else if (group != null)
     {
         <!-- Group Header -->
@@ -67,7 +58,6 @@
                     </p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <!-- QR Code Toggle Button -->
                     <button class="glow-button" @onclick="ToggleQRCode">
                         @if (showQRCode)
                         {
@@ -81,7 +71,6 @@
                 </div>
             </div>
 
-            <!-- QR Code Display (Collapsible) -->
             @if (showQRCode && !string.IsNullOrEmpty(qrCodeDataUri))
             {
                 <div class="mt-6 pt-6" style="border-top: 1px solid rgba(34, 211, 216, 0.2);">
@@ -106,9 +95,7 @@
 
         <!-- Student List Section -->
         <div class="glow-container p-6">
-            <h2 class="text-xl font-semibold gradient-text-pink mb-4">
-                Students
-            </h2>
+            <h2 class="text-xl font-semibold gradient-text-pink mb-4">Students</h2>
 
             @if (sessions == null || !sessions.Any())
             {
@@ -119,7 +106,6 @@
             }
             else
             {
-                <!-- Student List Container (REQ-DASH-008: optimized for ~30 students) -->
                 <div class="student-list-container space-y-2">
                     @foreach (var session in GetSortedSessions())
                     {
@@ -141,7 +127,6 @@
     }
 </div>
 
-<!-- Toast Container for Notifications -->
 <ToastContainer Toasts="toasts" OnDismiss="RemoveToast" />
 
 @code {
@@ -212,10 +197,14 @@
             }
 
             // Store sessions reference
-            sessions = group.StudentSessions.ToList();
+            sessions = group.StudentSessions?.ToList() ?? new List<StudentSession>();
 
-            // Load unresolved alerts
-            unresolvedAlerts = await AlertService.GetUnresolvedAlertsAsync(GroupId);
+            // Extract unresolved alerts from already-loaded data (avoids using scoped DbContext)
+            unresolvedAlerts = sessions
+                .SelectMany(s => s.HelpAlerts ?? Enumerable.Empty<HelpAlert>())
+                .Where(a => !a.IsResolved)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToList();
 
             // Build session alerts dictionary
             BuildSessionAlertsMap();

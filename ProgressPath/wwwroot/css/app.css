@@ -838,6 +838,12 @@ a:hover {
   box-shadow: 0 0 10px rgba(192, 132, 252, 0.2);
 }
 
+.view-chat-button svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
 /* Progress messages container in StudentDetail */
 .progress-messages-container::-webkit-scrollbar {
   width: 4px;
