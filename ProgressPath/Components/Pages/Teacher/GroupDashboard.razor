@@ -458,9 +458,11 @@
     {
         try
         {
-            var alert = unresolvedAlerts?.FirstOrDefault(a => a.Id == alertId);
-            if (alert == null) return;
+            // Find alert from sessionAlerts (authoritative source for displayed alerts)
+            var alertEntry = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == alertId);
+            if (alertEntry.Value == null) return;
 
+            var sessionId = alertEntry.Key;
             int groupId = GroupId;
 
             // Resolve the alert
@@ -470,9 +472,9 @@
             await HubNotificationService.NotifyAlertResolvedAsync(groupId, alertId);
 
             // Update local state
-            sessionAlerts[alert.StudentSessionId] = null;
+            sessionAlerts[sessionId] = null;
 
-            var session = sessions?.FirstOrDefault(s => s.Id == alert.StudentSessionId);
+            var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
             if (session != null)
             {
                 session.HasActiveAlert = false;
