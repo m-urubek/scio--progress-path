@@ -48,6 +48,22 @@ public class AlertResolvedEventArgs : EventArgs
 }
 
 /// <summary>
+/// Event arguments for new message events.
+/// </summary>
+public class MessageEventArgs : EventArgs
+{
+    public int MessageId { get; init; }
+    public int SessionId { get; init; }
+    public int GroupId { get; init; }
+    public string Content { get; init; } = string.Empty;
+    public bool IsFromStudent { get; init; }
+    public bool IsSystemMessage { get; init; }
+    public bool IsOffTopic { get; init; }
+    public bool SignificantProgress { get; init; }
+    public DateTime Timestamp { get; init; }
+}
+
+/// <summary>
 /// In-process event service for real-time updates to Blazor Server components.
 /// This avoids the complexity of loopback SignalR connections.
 /// Components subscribe to events for specific groups and receive updates directly in-memory.
@@ -75,6 +91,11 @@ public interface IProgressEventService
     event EventHandler<AlertResolvedEventArgs>? OnAlertResolved;
 
     /// <summary>
+    /// Event fired when a new message is sent (for student chat real-time updates).
+    /// </summary>
+    event EventHandler<MessageEventArgs>? OnMessage;
+
+    /// <summary>
     /// Publishes a progress update event.
     /// </summary>
     void PublishProgressUpdate(ProgressUpdateEventArgs args);
@@ -93,4 +114,9 @@ public interface IProgressEventService
     /// Publishes an alert resolved event.
     /// </summary>
     void PublishAlertResolved(AlertResolvedEventArgs args);
+
+    /// <summary>
+    /// Publishes a new message event.
+    /// </summary>
+    void PublishMessage(MessageEventArgs args);
 }

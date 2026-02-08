@@ -94,12 +94,27 @@ public class HubNotificationService : IHubNotificationService
             IsSystemMessage = message.IsSystemMessage
         };
 
-        // Send to both channels in parallel
+        // Send to both channels in parallel via SignalR
         await Task.WhenAll(
             _hubContext.Clients.Group(groupChannel)
                 .SendAsync(ProgressHub.ClientMethods.ReceiveMessage, payload),
             _hubContext.Clients.Group(studentChannel)
                 .SendAsync(ProgressHub.ClientMethods.ReceiveMessage, payload));
+
+        // Also publish to in-process event service for Blazor Server components
+        // This is more reliable than SignalR loopback for same-process components
+        _progressEventService.PublishMessage(new MessageEventArgs
+        {
+            MessageId = message.Id,
+            SessionId = sessionId,
+            GroupId = groupId,
+            Content = message.Content,
+            IsFromStudent = message.IsFromStudent,
+            IsSystemMessage = message.IsSystemMessage,
+            IsOffTopic = message.IsOffTopic,
+            SignificantProgress = message.SignificantProgress,
+            Timestamp = message.Timestamp
+        });
 
         _logger.LogDebug(
             "Sent message notification to channels {GroupChannel} and {StudentChannel}: Message {MessageId}",

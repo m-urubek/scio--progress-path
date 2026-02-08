@@ -19,18 +19,18 @@ public class InactivityMonitorService : BackgroundService
     /// <summary>
     /// Time before sending first warning to student (in minutes).
     /// </summary>
-    private const int WarningTimeoutMinutes = 5;
+    private const int WarningTimeoutMinutes = 1;
 
     /// <summary>
     /// Time before escalating to teacher alert after warning (in minutes).
     /// Total inactivity time = WarningTimeoutMinutes + AlertTimeoutMinutes = 10 minutes.
     /// </summary>
-    private const int AlertTimeoutMinutes = 5;
+    private const int AlertTimeoutMinutes = 1;
 
     /// <summary>
     /// Check interval in milliseconds (1 minute).
     /// </summary>
-    private const int CheckIntervalMs = 60000;
+    private const int CheckIntervalMs = 10000;
 
     /// <summary>
     /// Nudge message sent to student when they've been inactive.
@@ -131,9 +131,17 @@ public class InactivityMonitorService : BackgroundService
             else
             {
                 // Warning was sent - check if enough time has passed to escalate to teacher
-                var timeSinceWarning = DateTime.UtcNow - session.InactivityWarningSentAt.Value;
+                // Use the LATER of InactivityWarningSentAt or LastActivityAt as the reference
+                // This handles the case where teacher resolved an alert (which resets LastActivityAt)
+                var escalationReferenceTime = session.InactivityWarningSentAt.Value;
+                if (session.LastActivityAt.HasValue && session.LastActivityAt.Value > escalationReferenceTime)
+                {
+                    escalationReferenceTime = session.LastActivityAt.Value;
+                }
                 
-                if (timeSinceWarning.TotalMinutes >= AlertTimeoutMinutes)
+                var timeSinceReference = DateTime.UtcNow - escalationReferenceTime;
+                
+                if (timeSinceReference.TotalMinutes >= AlertTimeoutMinutes)
                 {
                     // Check if there's already an unresolved inactivity alert
                     var hasUnresolvedInactivityAlert = session.HelpAlerts

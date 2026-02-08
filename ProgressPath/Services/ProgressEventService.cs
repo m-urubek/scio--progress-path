@@ -27,6 +27,9 @@ public class ProgressEventService : IProgressEventService
     public event EventHandler<AlertResolvedEventArgs>? OnAlertResolved;
 
     /// <inheritdoc />
+    public event EventHandler<MessageEventArgs>? OnMessage;
+
+    /// <inheritdoc />
     public void PublishProgressUpdate(ProgressUpdateEventArgs args)
     {
         _logger.LogDebug(
@@ -64,5 +67,15 @@ public class ProgressEventService : IProgressEventService
             args.AlertId, args.GroupId);
 
         OnAlertResolved?.Invoke(this, args);
+    }
+
+    /// <inheritdoc />
+    public void PublishMessage(MessageEventArgs args)
+    {
+        _logger.LogDebug(
+            "Publishing message: Message {MessageId}, Session {SessionId}, System: {IsSystem}",
+            args.MessageId, args.SessionId, args.IsSystemMessage);
+
+        OnMessage?.Invoke(this, args);
     }
 }

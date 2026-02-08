@@ -149,6 +149,16 @@ public class AlertService : IAlertService
         alert.IsResolved = true;
         alert.ResolvedAt = DateTime.UtcNow;
 
+        // For inactivity alerts: reset the activity timer so it doesn't immediately re-trigger
+        // Keep InactivityWarningSentAt set so no new system message is sent until student types
+        if (alert.AlertType == AlertType.Inactivity)
+        {
+            alert.StudentSession.LastActivityAt = DateTime.UtcNow;
+            _logger.LogDebug(
+                "Reset LastActivityAt for session {SessionId} after resolving inactivity alert",
+                alert.StudentSessionId);
+        }
+
         // Check if there are any other unresolved alerts for this session
         var hasOtherUnresolvedAlerts = alert.StudentSession.HelpAlerts
             .Any(a => a.Id != alertId && !a.IsResolved);

@@ -1,4 +1,5 @@
 @using ProgressPath.Models
+@implements IDisposable
 
 <!-- Alert Side Panel (Left, non-closable) -->
 <div class="alert-panel">
@@ -89,6 +90,31 @@
     /// </summary>
     [Parameter]
     public EventCallback<int> OnResolve { get; set; }
+
+    /// <summary>
+    /// Timer to periodically update relative times.
+    /// </summary>
+    private Timer? _refreshTimer;
+
+    /// <summary>
+    /// Initialize timer to refresh relative times every 30 seconds.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        // Update times every 30 seconds
+        _refreshTimer = new Timer(_ =>
+        {
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>
+    /// Dispose the timer when component is disposed.
+    /// </summary>
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
 
     /// <summary>
     /// Gets the CSS class based on alert type.

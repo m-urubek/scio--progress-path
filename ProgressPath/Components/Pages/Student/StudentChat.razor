@@ -5,12 +5,14 @@
 @using ProgressPath.Models
 @using ProgressPath.Data
 @using ProgressPath.Hubs
+@using ProgressPath.Services
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IChatService ChatService
 @inject IStudentSessionService StudentSessionService
 @inject IHubNotificationService HubNotificationService
+@inject IProgressEventService ProgressEventService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject ILogger<StudentChat> Logger
@@ -167,9 +169,13 @@
     private bool manuallyToggled = false;  // Track if user manually toggled
     private DotNetObjectReference<StudentChat>? dotNetHelper;
 
-    // SignalR connection
+    // SignalR connection (backup for multi-tab sync)
     private HubConnection? hubConnection;
     private CancellationTokenSource? disposalTokenSource;
+    private bool signalRInitialized = false;
+    
+    // In-process event subscription (primary real-time mechanism for Blazor Server)
+    private bool eventsSubscribed = false;
 
     /// <summary>
     /// Page states for the UI state machine.
@@ -221,6 +227,10 @@
 
             pageState = PageState.Active;
 
+            // Subscribe to in-process events for real-time updates
+            // This is more reliable than SignalR loopback for Blazor Server
+            SubscribeToEvents();
+
             Logger.LogInformation(
                 "Loaded chat for session {SessionId} (student: {Nickname}, group: {GroupName})",
                 SessionId,
@@ -235,13 +245,102 @@
     }
 
     /// <summary>
-    /// Initialize SignalR connection and JS interop after first render.
+    /// Subscribe to in-process events for real-time message and progress updates.
+    /// </summary>
+    private void SubscribeToEvents()
+    {
+        if (eventsSubscribed) return;
+
+        ProgressEventService.OnMessage += HandleMessageEvent;
+        ProgressEventService.OnProgressUpdate += HandleProgressEvent;
+        eventsSubscribed = true;
+        
+        Logger.LogDebug("Subscribed to in-process events for session {SessionId}", SessionId);
+    }
+
+    /// <summary>
+    /// Unsubscribe from in-process events.
+    /// </summary>
+    private void UnsubscribeFromEvents()
+    {
+        if (!eventsSubscribed) return;
+
+        ProgressEventService.OnMessage -= HandleMessageEvent;
+        ProgressEventService.OnProgressUpdate -= HandleProgressEvent;
+        eventsSubscribed = false;
+    }
+
+    /// <summary>
+    /// Handles new message events from the in-process event service.
+    /// Only handles AI responses and system messages - student messages are handled 
+    /// via optimistic UI in HandleSendMessage to avoid duplicates.
+    /// </summary>
+    private void HandleMessageEvent(object? sender, MessageEventArgs e)
+    {
+        // Only handle messages for this session
+        if (e.SessionId != SessionId) return;
+
+        // Skip student messages - they're handled via optimistic UI in HandleSendMessage
+        // This prevents duplicates when the event fires while SendMessageAsync is running
+        if (e.IsFromStudent) return;
+
+        // Check if message already exists (avoid duplicates)
+        if (messages.Any(m => m.Id == e.MessageId)) return;
+
+        var message = new ChatMessage
+        {
+            Id = e.MessageId,
+            StudentSessionId = SessionId,
+            Content = e.Content,
+            IsFromStudent = e.IsFromStudent,
+            IsSystemMessage = e.IsSystemMessage,
+            Timestamp = e.Timestamp,
+            IsOffTopic = e.IsOffTopic,
+            SignificantProgress = e.SignificantProgress
+        };
+
+        messages.Add(message);
+        InvokeAsync(StateHasChanged);
+
+        Logger.LogDebug("Received message {MessageId} via in-process event (system: {IsSystem})", 
+            e.MessageId, e.IsSystemMessage);
+    }
+
+    /// <summary>
+    /// Handles progress update events from the in-process event service.
+    /// </summary>
+    private void HandleProgressEvent(object? sender, ProgressUpdateEventArgs e)
+    {
+        // Only handle progress for this session
+        if (e.SessionId != SessionId) return;
+
+        if (session != null)
+        {
+            session.CurrentProgress = e.CurrentProgress;
+            session.IsCompleted = e.IsCompleted;
+
+            if (e.IsCompleted)
+            {
+                Logger.LogInformation("Goal completed for session {SessionId} via in-process event", SessionId);
+            }
+
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Initialize SignalR connection and JS interop after render.
     /// JS interop is only available after render in Blazor Server.
+    /// Note: Cannot rely on firstRender because session is loaded asynchronously,
+    /// so session may be null during the first render.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && session != null)
+        // Initialize SignalR when session is loaded (may not be during firstRender due to async loading)
+        if (!signalRInitialized && session != null)
         {
+            signalRInitialized = true;
+            
             try
             {
                 // Initialize header expand/collapse JS interop
@@ -330,6 +429,7 @@
                 DateTime timestamp = payload.GetProperty("Timestamp").GetDateTime();
                 bool isOffTopic = payload.TryGetProperty("IsOffTopic", out var offTopicProp) && offTopicProp.GetBoolean();
                 bool significantProgress = payload.TryGetProperty("SignificantProgress", out var progressProp) && progressProp.GetBoolean();
+                bool isSystemMessage = payload.TryGetProperty("IsSystemMessage", out var systemProp) && systemProp.GetBoolean();
 
                 // Check if message already exists (avoid duplicates from optimistic UI)
                 if (!messages.Any(m => m.Id == messageId))
@@ -342,13 +442,14 @@
                         IsFromStudent = isFromStudent,
                         Timestamp = timestamp,
                         IsOffTopic = isOffTopic,
-                        SignificantProgress = significantProgress
+                        SignificantProgress = significantProgress,
+                        IsSystemMessage = isSystemMessage
                     };
 
                     messages.Add(message);
                     InvokeAsync(StateHasChanged);
 
-                    Logger.LogDebug("Received message {MessageId} via SignalR", messageId);
+                    Logger.LogDebug("Received message {MessageId} via SignalR (system: {IsSystem})", messageId, isSystemMessage);
                 }
             }
             catch (Exception ex)
@@ -647,6 +748,9 @@
     /// </summary>
     public async ValueTask DisposeAsync()
     {
+        // Unsubscribe from in-process events first
+        UnsubscribeFromEvents();
+        
         disposalTokenSource?.Cancel();
         disposalTokenSource?.Dispose();
         

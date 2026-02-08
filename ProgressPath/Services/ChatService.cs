@@ -101,7 +101,22 @@ public class ChatService : IChatService
         };
 
         _dbContext.ChatMessages.Add(studentMessage);
+        
+        // Update last activity directly on the already-loaded session entity
+        // This is more reliable than calling another service which might have DbContext conflicts
+        // REQ-AI-024: reset timer regardless of API success
+        var wasInactive = session.InactivityWarningSentAt != null;
+        session.LastActivityAt = DateTime.UtcNow;
+        session.InactivityWarningSentAt = null; // Reset warning - allows new warning after next inactivity period
+        
+        // Explicitly mark session as modified to ensure changes are saved
+        _dbContext.Entry(session).State = EntityState.Modified;
+        
         await _dbContext.SaveChangesAsync();
+        
+        _logger.LogInformation(
+            "Session {SessionId} activity updated: LastActivityAt={LastActivity}, InactivityWarningSentAt=null, WasInactive={WasInactive}",
+            sessionId, session.LastActivityAt, wasInactive);
 
         // Broadcast student message to all tabs for this session (REQ-GROUP-020: multi-tab sync)
         await _hubNotificationService.NotifyNewMessageAsync(sessionId, session.GroupId, studentMessage);
@@ -110,9 +125,6 @@ public class ChatService : IChatService
             "Student message saved for session {SessionId}: {ContentPreview}",
             sessionId,
             trimmedContent.Length > 50 ? trimmedContent[..50] + "..." : trimmedContent);
-
-        // Update last activity timestamp (REQ-AI-024: reset timer regardless of API success)
-        await _sessionService.UpdateLastActivityAsync(sessionId);
 
         // Build chat context for LLM
         var stepDescriptions = GetStepDescriptionsFromGroup(session.Group);
