@@ -59,14 +59,14 @@
                         <th class="text-left py-3 px-4 opacity-75 font-medium">Status</th>
                         <th class="text-left py-3 px-4 opacity-75 font-medium">Active Students</th>
                         <th class="text-left py-3 px-4 opacity-75 font-medium">Overall Progress</th>
+                        <th class="w-8"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var group in groups ?? Enumerable.Empty<Group>())
                     {
-                        <tr class="cursor-pointer transition"
-                            style="border-bottom: 1px solid rgba(192, 132, 252, 0.1);"
-                            @onclick="() => NavigateToGroup(group.Id)">
+                        <tr class="group-row cursor-pointer"
+                            @onclick="() => NavigateToGroup(group)">
                             <td class="py-4 px-4">
                                 <span class="font-medium">@group.Name</span>
                             </td>
@@ -97,6 +97,11 @@
                                         @CalculateOverallProgress(group)%
                                     </span>
                                 </div>
+                            </td>
+                            <td class="py-4 px-2 opacity-50 group-row-chevron">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
                             </td>
                         </tr>
                     }
@@ -156,12 +161,19 @@
     }
 
     /// <summary>
-    /// Navigates to the group detail page.
+    /// Navigates to the group detail page, or confirmation page if not yet confirmed.
     /// </summary>
-    /// <param name="groupId">ID of the group to view.</param>
-    private void NavigateToGroup(int groupId)
+    /// <param name="group">The group to navigate to.</param>
+    private void NavigateToGroup(Group group)
     {
-        NavigationManager.NavigateTo($"/groups/{groupId}");
+        if (group.IsConfirmed)
+        {
+            NavigationManager.NavigateTo($"/groups/{group.Id}");
+        }
+        else
+        {
+            NavigationManager.NavigateTo($"/groups/{group.Id}/confirm");
+        }
     }
 
     /// <summary>

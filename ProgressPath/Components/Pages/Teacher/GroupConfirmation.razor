@@ -1,0 +1,179 @@
+@page "/groups/{GroupId:int}/confirm"
+@attribute [Authorize]
+@using ProgressPath.Models
+@using ProgressPath.Models.DTOs
+@inject IGroupService GroupService
+@inject IAuthenticationService AuthService
+@inject IQRCodeService QRCodeService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+
+<PageTitle>Confirm Goal - Progress Path</PageTitle>
+
+<div class="container mx-auto py-8 px-4 max-w-2xl">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/groups" class="text-sm opacity-75 hover:opacity-100 transition">
+            ← Back to Groups
+        </a>
+    </div>
+
+    @if (isPageLoading)
+    {
+        <div class="glow-container p-8 text-center">
+            <p class="text-lg opacity-75">Loading group...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
+            <p class="text-lg" style="color: var(--color-primary);">@pageError</p>
+            <button class="glow-button mt-4" @onclick="NavigateToGroups">
+                Return to Groups
+            </button>
+        </div>
+    }
+    else if (showQRCode && group != null)
+    {
+        <QRCodeDisplay JoinUrl="@GetJoinUrl()" JoinCode="@group.JoinCode" />
+
+        <div class="mt-6 text-center">
+            <button class="glow-button" @onclick="NavigateToDashboard">
+                Go to Dashboard
+            </button>
+        </div>
+    }
+    else if (group != null && goalInterpretation != null)
+    {
+        <GoalConfirmation GoalType="@goalInterpretation.GoalType"
+                          Steps="@goalInterpretation.Steps"
+                          WelcomeMessage="@goalInterpretation.WelcomeMessage"
+                          GroupName="@group.Name"
+                          GoalDescription="@group.GoalDescription"
+                          OnAccept="HandleAccept"
+                          OnReject="HandleReject"
+                          IsLoading="@isLoading"
+                          ErrorMessage="@errorMessage" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int GroupId { get; set; }
+
+    private Group? group;
+    private GoalInterpretation? goalInterpretation;
+    private bool isPageLoading = true;
+    private bool isLoading = false;
+    private bool showQRCode = false;
+    private string? pageError;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Verify current user owns this group
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await AuthService.GetCurrentUserAsync(authState.User);
+
+            if (user == null)
+            {
+                pageError = "Unable to load user information. Please sign in again.";
+                return;
+            }
+
+            group = await GroupService.GetGroupByIdAsync(GroupId, user.Id);
+
+            if (group == null)
+            {
+                pageError = "Group not found or you don't have permission to view it.";
+                return;
+            }
+
+            // If already confirmed, redirect to dashboard
+            if (group.IsConfirmed)
+            {
+                NavigationManager.NavigateTo($"/groups/{GroupId}");
+                return;
+            }
+
+            // Load the interpretation
+            goalInterpretation = await GroupService.GetGoalInterpretationAsync(GroupId);
+        }
+        catch (Exception ex)
+        {
+            pageError = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isPageLoading = false;
+        }
+    }
+
+    private async Task HandleAccept()
+    {
+        if (group == null) return;
+
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            await GroupService.ConfirmGoalInterpretationAsync(group.Id);
+            showQRCode = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to confirm goal: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToGroups()
+    {
+        NavigationManager.NavigateTo("/groups");
+    }
+
+    private void NavigateToDashboard()
+    {
+        NavigationManager.NavigateTo($"/groups/{GroupId}");
+    }
+
+    private string GetJoinUrl()
+    {
+        var baseUrl = Configuration["ApplicationBaseUrl"] ?? NavigationManager.BaseUri.TrimEnd('/');
+        return $"{baseUrl}/join/{group!.JoinCode}";
+    }
+
+    private async Task HandleReject(string updatedGoalDescription)
+    {
+        if (group == null) return;
+
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            await GroupService.RejectGoalInterpretationAsync(group.Id, updatedGoalDescription);
+            goalInterpretation = await GroupService.GetGoalInterpretationAsync(group.Id);
+            group.GoalDescription = updatedGoalDescription;
+        }
+        catch (LLMServiceException)
+        {
+            errorMessage = "Failed to reinterpret your goal. Please try again.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

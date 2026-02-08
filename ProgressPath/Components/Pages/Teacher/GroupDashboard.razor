@@ -192,6 +192,7 @@
             // Load group with authorization check
             await using var dbContext = await DbContextFactory.CreateDbContextAsync();
             group = await dbContext.Groups
+                .AsNoTracking()
                 .Include(g => g.StudentSessions)
                     .ThenInclude(s => s.HelpAlerts)
                 .FirstOrDefaultAsync(g => g.Id == GroupId && g.TeacherId == currentUser.Id);
@@ -200,6 +201,13 @@
             {
                 errorMessage = "Group not found or you don't have permission to view it.";
                 isLoading = false;
+                return;
+            }
+
+            // Redirect unconfirmed groups to confirmation page
+            if (!group.IsConfirmed)
+            {
+                NavigationManager.NavigateTo($"/groups/{GroupId}/confirm");
                 return;
             }
 

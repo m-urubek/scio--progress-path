@@ -24,7 +24,12 @@ builder.Services.AddHttpContextAccessor();
 // Register DbContextFactory (also registers DbContext as scoped) for both
 // regular injection and multi-threaded access (migrations, seeding, background services)
 builder.Services.AddDbContextFactory<ProgressPathDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlOptions => sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 
 // Configure authentication (REQ-AUTH-001)
 var googleClientId = builder.Configuration["GoogleAuth:ClientId"];
