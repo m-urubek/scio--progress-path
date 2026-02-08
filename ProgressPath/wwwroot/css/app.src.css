@@ -84,6 +84,117 @@
   50% { transform: translateY(-10px); }
 }
 
+/* ====================================
+   Animated Background (floating gradient orbs)
+   ==================================== */
+@keyframes drift-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(8vw, -12vh) scale(1.1); }
+  50%  { transform: translate(-5vw, -25vh) scale(0.95); }
+  75%  { transform: translate(12vw, -8vh) scale(1.05); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes drift-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(-10vw, 15vh) scale(1.15); }
+  50%  { transform: translate(8vw, 5vh) scale(0.9); }
+  75%  { transform: translate(-15vw, -10vh) scale(1.1); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes drift-3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(15vw, 10vh) scale(1.1); }
+  66%  { transform: translate(-8vw, -15vh) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.animated-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.5;
+  will-change: transform;
+}
+
+/* Row 1: top of screen */
+.orb-1 {
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  top: 3%; left: 5%;
+  animation: drift-1 16s ease-in-out infinite;
+}
+.orb-2 {
+  width: 150px; height: 150px;
+  background: radial-gradient(circle, var(--color-secondary) 0%, transparent 70%);
+  top: 5%; left: 40%;
+  animation: drift-2 13s ease-in-out infinite;
+}
+.orb-3 {
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, var(--color-tertiary) 0%, transparent 70%);
+  top: 2%; left: 75%;
+  animation: drift-3 15s ease-in-out infinite reverse;
+}
+
+/* Row 2: upper-middle */
+.orb-4 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, var(--color-accent) 0%, transparent 70%);
+  top: 28%; left: 20%;
+  animation: drift-2 18s ease-in-out infinite reverse;
+}
+.orb-5 {
+  width: 140px; height: 140px;
+  background: radial-gradient(circle, var(--color-highlight) 0%, transparent 70%);
+  top: 32%; left: 60%;
+  animation: drift-1 14s ease-in-out infinite;
+}
+
+/* Row 3: center */
+.orb-6 {
+  width: 170px; height: 170px;
+  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  top: 50%; left: 8%;
+  animation: drift-3 12s ease-in-out infinite;
+}
+.orb-7 {
+  width: 190px; height: 190px;
+  background: radial-gradient(circle, var(--color-tertiary) 0%, transparent 70%);
+  top: 48%; left: 45%;
+  animation: drift-1 17s ease-in-out infinite reverse;
+}
+.orb-8 {
+  width: 130px; height: 130px;
+  background: radial-gradient(circle, var(--color-secondary) 0%, transparent 70%);
+  top: 52%; left: 82%;
+  animation: drift-2 11s ease-in-out infinite;
+}
+
+/* Row 4: bottom */
+.orb-9 {
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, var(--color-accent) 0%, transparent 70%);
+  top: 72%; left: 30%;
+  animation: drift-3 15s ease-in-out infinite reverse;
+}
+.orb-10 {
+  width: 150px; height: 150px;
+  background: radial-gradient(circle, var(--color-highlight) 0%, transparent 70%);
+  top: 78%; left: 70%;
+  animation: drift-1 13s ease-in-out infinite;
+}
+
 /* Base styles */
 html {
   scroll-behavior: smooth;
