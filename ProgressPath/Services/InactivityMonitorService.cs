@@ -19,18 +19,18 @@ public class InactivityMonitorService : BackgroundService
     /// <summary>
     /// Time before sending first warning to student (in minutes).
     /// </summary>
-    private const int WarningTimeoutMinutes = 1;
+    private const int WarningTimeoutMinutes = 5;
 
     /// <summary>
     /// Time before escalating to teacher alert after warning (in minutes).
     /// Total inactivity time = WarningTimeoutMinutes + AlertTimeoutMinutes = 10 minutes.
     /// </summary>
-    private const int AlertTimeoutMinutes = 1;
+    private const int AlertTimeoutMinutes = 5;
 
     /// <summary>
     /// Check interval in milliseconds (1 minute).
     /// </summary>
-    private const int CheckIntervalMs = 10000;
+    private const int CheckIntervalMs = 30000;
 
     /// <summary>
     /// Nudge message sent to student when they've been inactive.
