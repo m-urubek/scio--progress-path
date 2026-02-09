@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AlertService.cs",
+      "description": "The off-topic counter reset in ResolveAlertAsync is not implemented. When resolving an off-topic alert, the assignment mentions 'restart warning cycle for off-topic' but the counter is not reset on resolution. The reset only happens when an on-topic message is received via ResetOffTopicCounterAsync. This is likely intentional as the PRD states counter resets on on-topic message, not on resolution."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:13.20"
+}

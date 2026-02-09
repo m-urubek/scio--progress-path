@@ -1,0 +1,197 @@
+@* VoiceDictation.razor - Voice input component using Web Speech API.
+   REQ-CHAT-012: Voice dictation via browser-native Web Speech API.
+   REQ-CHAT-013: Microphone button with recording state indication.
+   REQ-CHAT-014: Transcribed text appears in input field for review.
+   REQ-CHAT-015: Unsupported browsers hide the dictation button entirely. *@
+
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+@* Only render the button if the browser supports Web Speech API *@
+@if (isSupported)
+{
+    <button class="@ButtonClasses"
+            @onclick="ToggleRecording"
+            disabled="@IsDisabled"
+            title="@(isRecording ? "Stop recording" : "Start voice input")">
+        @if (isRecording)
+        {
+            @* Microphone "on" icon with waves - indicates active recording *@
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+        }
+        else
+        {
+            @* Microphone "off" icon - indicates ready to record *@
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+        }
+    </button>
+}
+
+@code {
+    /// <summary>
+    /// Callback invoked when speech is transcribed.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnTranscription { get; set; }
+
+    /// <summary>
+    /// Whether the voice button should be disabled.
+    /// </summary>
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
+    /// <summary>
+    /// Whether Web Speech API is supported by the browser.
+    /// Initialized to false, set to true after JS detection.
+    /// </summary>
+    private bool isSupported = false;
+
+    /// <summary>
+    /// Whether voice recording is currently active.
+    /// </summary>
+    private bool isRecording = false;
+
+    /// <summary>
+    /// Reference to this component for JS callbacks.
+    /// </summary>
+    private DotNetObjectReference<VoiceDictation>? dotNetRef;
+
+    /// <summary>
+    /// Dynamic CSS classes for the button based on recording state.
+    /// </summary>
+    private string ButtonClasses => isRecording
+        ? "voice-button voice-button-recording"
+        : "voice-button";
+
+    /// <summary>
+    /// Checks for Web Speech API support and initializes if supported.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Check if Web Speech API is supported
+                isSupported = await JSRuntime.InvokeAsync<bool>("speechInterop.isSupported");
+
+                if (isSupported)
+                {
+                    // Initialize the speech recognition
+                    await JSRuntime.InvokeVoidAsync("speechInterop.initialize");
+
+                    // Create reference for JS callbacks
+                    dotNetRef = DotNetObjectReference.Create(this);
+                }
+
+                // Trigger re-render to show/hide the button
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VoiceDictation] Error initializing: {ex.Message}");
+                isSupported = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Toggles voice recording on/off.
+    /// </summary>
+    private async Task ToggleRecording()
+    {
+        if (IsDisabled || !isSupported)
+        {
+            return;
+        }
+
+        try
+        {
+            if (isRecording)
+            {
+                // Stop recording
+                await JSRuntime.InvokeVoidAsync("speechInterop.stopRecording");
+                isRecording = false;
+            }
+            else
+            {
+                // Start recording
+                await JSRuntime.InvokeVoidAsync("speechInterop.startRecording", dotNetRef);
+                isRecording = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VoiceDictation] Error toggling recording: {ex.Message}");
+            isRecording = false;
+        }
+    }
+
+    /// <summary>
+    /// JS-invokable callback when speech is successfully transcribed.
+    /// </summary>
+    /// <param name="transcript">The transcribed text.</param>
+    [JSInvokable]
+    public async Task OnSpeechResult(string transcript)
+    {
+        if (!string.IsNullOrWhiteSpace(transcript))
+        {
+            await OnTranscription.InvokeAsync(transcript);
+        }
+    }
+
+    /// <summary>
+    /// JS-invokable callback when a speech recognition error occurs.
+    /// </summary>
+    /// <param name="error">Error description.</param>
+    [JSInvokable]
+    public void OnSpeechError(string error)
+    {
+        Console.WriteLine($"[VoiceDictation] Speech error: {error}");
+        isRecording = false;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// JS-invokable callback when speech recognition ends.
+    /// </summary>
+    [JSInvokable]
+    public void OnSpeechEnded()
+    {
+        isRecording = false;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Cleanup resources on component disposal.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (isRecording)
+            {
+                await JSRuntime.InvokeVoidAsync("speechInterop.stopRecording");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // JS runtime is no longer available during circuit disconnection - ignore
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component disposed before cleanup could complete - ignore
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering or after disconnect - ignore
+        }
+
+        dotNetRef?.Dispose();
+    }
+}

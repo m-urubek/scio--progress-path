@@ -1,0 +1,557 @@
+@page "/groups/{GroupId:int}"
+@attribute [Authorize]
+@using ProgressPath.Models
+@using ProgressPath.Data
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject IGroupService GroupService
+@inject IStudentSessionService StudentSessionService
+@inject IAlertService AlertService
+@inject IChatService ChatService
+@inject IAuthenticationService AuthService
+@inject IQRCodeService QRCodeService
+@inject IHubNotificationService HubNotificationService
+@inject IProgressEventService ProgressEventService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+@inject IDbContextFactory<ProgressPathDbContext> DbContextFactory
+@inject ILogger<GroupDashboard> Logger
+
+<PageTitle>@(group != null ? group.Name + " - Progress Path" : "Group Dashboard - Progress Path")</PageTitle>
+
+<div class="dashboard-layout">
+    <!-- Left Alert Panel (always visible) -->
+    <AlertPanel Alerts="GetAlertPanelData()" OnResolve="HandleResolveAlert" />
+
+    <!-- Main Content Area -->
+    <div class="dashboard-main">
+        <div class="container mx-auto py-8 px-4">
+            <div class="mb-6">
+                <a href="/groups" class="text-sm opacity-75 hover:opacity-100 transition">← Back to Groups</a>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="glow-container p-8 text-center">
+                    <div class="flex items-center justify-center gap-3">
+                        <div class="animate-spin h-6 w-6 rounded-full" style="border: 3px solid rgba(34, 211, 216, 0.3); border-top-color: var(--color-tertiary);"></div>
+                        <p class="text-lg opacity-75">Loading dashboard...</p>
+                    </div>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
+                    <p class="text-lg" style="color: var(--color-primary);">@errorMessage</p>
+                    <button class="glow-button mt-4" @onclick="NavigateToGroups">
+                        Return to Groups
+                    </button>
+                </div>
+            }
+            else if (group != null)
+            {
+                <!-- Group Header -->
+                <div class="glow-container p-6 mb-6">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold gradient-text mb-2">
+                                @group.Name
+                            </h1>
+                            <p class="text-sm opacity-75">
+                                @(sessions?.Count() ?? 0) students • Goal: @group.GoalDescription
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <button class="glow-button" @onclick="ToggleQRCode">
+                                @if (showQRCode)
+                                {
+                                    <span>Hide QR Code</span>
+                                }
+                                else
+                                {
+                                    <span>Show QR Code</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (showQRCode && !string.IsNullOrEmpty(qrCodeDataUri))
+                    {
+                        <div class="mt-6 pt-6" style="border-top: 1px solid rgba(34, 211, 216, 0.2);">
+                            <div class="flex flex-col md:flex-row items-center gap-6">
+                                <div class="inner-card p-4">
+                                    <img src="@qrCodeDataUri" alt="QR Code to join group" class="w-48 h-48 rounded-lg" />
+                                </div>
+                                <div class="text-center md:text-left">
+                                    <p class="text-sm opacity-75 mb-1">Join Code</p>
+                                    <p class="text-2xl font-mono font-bold tracking-widest" style="color: var(--color-tertiary);">
+                                        @group.JoinCode
+                                    </p>
+                                    <p class="text-sm opacity-75 mt-3 mb-1">Join URL</p>
+                                    <p class="text-sm font-mono" style="color: var(--color-tertiary);">
+                                        @joinUrl
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Student List Section -->
+                <div class="glow-container p-6">
+                    <h2 class="text-xl font-semibold gradient-text-pink mb-4">Students</h2>
+
+                    @if (sessions == null || !sessions.Any())
+                    {
+                        <div class="inner-card text-center py-8">
+                            <p class="opacity-75">No students have joined yet.</p>
+                            <p class="text-sm opacity-50 mt-2">Share the QR code above to invite students.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="student-list-container space-y-2">
+                            @foreach (var session in GetSortedSessions())
+                            {
+                                var alert = GetSessionAlert(session.Id);
+                                var isExpanded = expandedStudents.Contains(session.Id);
+
+                                <StudentRow @key="session.Id"
+                                            Session="session"
+                                            CurrentProgress="session.CurrentProgress"
+                                            IsCompleted="session.IsCompleted"
+                                            GoalType="group.GoalType"
+                                            TotalSteps="group.TotalSteps"
+                                            ActiveAlert="alert"
+                                            IsExpanded="isExpanded"
+                                            OnToggleExpansion="() => ToggleExpansion(session.Id)"
+                                            OnResolveAlert="HandleResolveAlert"
+                                            OnViewFullChat="HandleViewFullChat" />
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Chat History Modal - rendered at page level to avoid CSS containment issues (REQ-DASH-016) *@
+@if (showChatModal && chatModalSession != null)
+{
+    <ChatHistoryModal SessionId="@chatModalSession.Id"
+                     Nickname="@chatModalSession.Nickname"
+                     GroupId="@GroupId"
+                     GoalType="@(group?.GoalType ?? GoalType.Binary)"
+                     TotalSteps="@group?.TotalSteps"
+                     CurrentProgress="@chatModalSession.CurrentProgress"
+                     IsCompleted="@chatModalSession.IsCompleted"
+                     IsVisible="true"
+                     IsEmbedded="false"
+                     OnClose="CloseChatModal" />
+}
+
+@code {
+    /// <summary>
+    /// Route parameter: the group ID from the URL.
+    /// </summary>
+    [Parameter]
+    public int GroupId { get; set; }
+
+    // Internal state
+    private Group? group;
+    private IEnumerable<StudentSession>? sessions;
+    private IEnumerable<HelpAlert>? unresolvedAlerts;
+    private Dictionary<int, HelpAlert?> sessionAlerts = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+    private User? currentUser;
+    private string? qrCodeDataUri;
+    private string? joinUrl;
+    private bool showQRCode = false;
+    private HashSet<int> expandedStudents = new();
+
+    // Chat modal state
+    private bool showChatModal = false;
+    private StudentSession? chatModalSession;
+
+    // Event handlers for cleanup
+    private bool _eventsSubscribed = false;
+
+    /// <summary>
+    /// Loads the group data and initializes the dashboard.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to in-process events for real-time updates
+        SubscribeToEvents();
+
+        try
+        {
+            // Get current user
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUser = await AuthService.GetCurrentUserAsync(authState.User);
+
+            if (currentUser == null)
+            {
+                errorMessage = "Unable to load user information. Please sign in again.";
+                isLoading = false;
+                return;
+            }
+
+            // Load group with authorization check
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            group = await dbContext.Groups
+                .AsNoTracking()
+                .Include(g => g.StudentSessions)
+                    .ThenInclude(s => s.HelpAlerts)
+                .FirstOrDefaultAsync(g => g.Id == GroupId && g.TeacherId == currentUser.Id);
+
+            if (group == null)
+            {
+                errorMessage = "Group not found or you don't have permission to view it.";
+                isLoading = false;
+                return;
+            }
+
+            // Redirect unconfirmed groups to confirmation page
+            if (!group.IsConfirmed)
+            {
+                NavigationManager.NavigateTo($"/groups/{GroupId}/confirm");
+                return;
+            }
+
+            // Store sessions reference
+            sessions = group.StudentSessions?.ToList() ?? new List<StudentSession>();
+
+            // Extract unresolved alerts from already-loaded data (avoids using scoped DbContext)
+            unresolvedAlerts = sessions
+                .SelectMany(s => s.HelpAlerts ?? Enumerable.Empty<HelpAlert>())
+                .Where(a => !a.IsResolved)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToList();
+
+            // Build session alerts dictionary
+            BuildSessionAlertsMap();
+
+            // Generate QR code
+            var baseUrl = Configuration["ApplicationBaseUrl"] ?? NavigationManager.BaseUri.TrimEnd('/');
+            joinUrl = $"{baseUrl}/join/{group.JoinCode}";
+            qrCodeDataUri = QRCodeService.GenerateQRCodeBase64(joinUrl);
+
+            Logger.LogInformation("Dashboard initialized for group {GroupId}, subscribed to events", GroupId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading group dashboard for GroupId {GroupId}", GroupId);
+            errorMessage = "An error occurred while loading the dashboard.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Subscribes to in-process progress events.
+    /// </summary>
+    private void SubscribeToEvents()
+    {
+        if (_eventsSubscribed) return;
+
+        ProgressEventService.OnProgressUpdate += HandleProgressUpdate;
+        ProgressEventService.OnStudentJoined += HandleStudentJoined;
+        ProgressEventService.OnAlert += HandleAlert;
+        ProgressEventService.OnAlertResolved += HandleAlertResolved;
+        _eventsSubscribed = true;
+    }
+
+    /// <summary>
+    /// Unsubscribes from in-process progress events.
+    /// </summary>
+    private void UnsubscribeFromEvents()
+    {
+        if (!_eventsSubscribed) return;
+
+        ProgressEventService.OnProgressUpdate -= HandleProgressUpdate;
+        ProgressEventService.OnStudentJoined -= HandleStudentJoined;
+        ProgressEventService.OnAlert -= HandleAlert;
+        ProgressEventService.OnAlertResolved -= HandleAlertResolved;
+        _eventsSubscribed = false;
+    }
+
+    /// <summary>
+    /// Handles progress update events from the event service.
+    /// </summary>
+    private void HandleProgressUpdate(object? sender, ProgressUpdateEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        var session = sessions?.FirstOrDefault(s => s.Id == e.SessionId);
+        if (session != null)
+        {
+            session.CurrentProgress = e.CurrentProgress;
+            session.IsCompleted = e.IsCompleted;
+            InvokeAsync(StateHasChanged);
+
+            Logger.LogDebug(
+                "Updated progress for session {SessionId}: {Progress}% (completed: {IsCompleted})",
+                e.SessionId, e.CurrentProgress, e.IsCompleted);
+        }
+    }
+
+    /// <summary>
+    /// Handles student joined events from the event service.
+    /// </summary>
+    private void HandleStudentJoined(object? sender, StudentJoinedEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        // Check if session already exists
+        if (sessions?.Any(s => s.Id == e.SessionId) == true) return;
+
+        var newSession = new StudentSession
+        {
+            Id = e.SessionId,
+            Nickname = e.Nickname,
+            CurrentProgress = e.CurrentProgress,
+            IsCompleted = e.IsCompleted,
+            JoinedAt = e.JoinedAt,
+            GroupId = GroupId
+        };
+
+        var sessionsList = sessions?.ToList() ?? new List<StudentSession>();
+        sessionsList.Add(newSession);
+        sessions = sessionsList;
+
+        InvokeAsync(StateHasChanged);
+
+        Logger.LogDebug("Added new student {Nickname} to dashboard", e.Nickname);
+    }
+
+    /// <summary>
+    /// Handles alert events from the event service.
+    /// </summary>
+    private void HandleAlert(object? sender, AlertEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        // Parse alert type
+        if (!Enum.TryParse<AlertType>(e.AlertType, out var alertType))
+        {
+            Logger.LogWarning("Unknown alert type: {AlertType}", e.AlertType);
+            return;
+        }
+
+        // Create alert object
+        var alert = new HelpAlert
+        {
+            Id = e.AlertId,
+            StudentSessionId = e.SessionId,
+            AlertType = alertType,
+            CreatedAt = e.CreatedAt,
+            IsResolved = false
+        };
+
+        // Update session alerts map
+        sessionAlerts[e.SessionId] = alert;
+
+        // Update session's HasActiveAlert
+        var session = sessions?.FirstOrDefault(s => s.Id == e.SessionId);
+        if (session != null)
+        {
+            session.HasActiveAlert = true;
+            session.AlertType = alertType;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Handles alert resolved events from the event service.
+    /// </summary>
+    private void HandleAlertResolved(object? sender, AlertResolvedEventArgs e)
+    {
+        // Only process events for this group
+        if (e.GroupId != GroupId) return;
+
+        // Find and remove alert from sessionAlerts
+        var sessionId = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == e.AlertId).Key;
+        if (sessionId != 0)
+        {
+            sessionAlerts[sessionId] = null;
+
+            var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+            if (session != null)
+            {
+                session.HasActiveAlert = false;
+                session.AlertType = null;
+            }
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Builds the dictionary mapping session IDs to their active alerts.
+    /// </summary>
+    private void BuildSessionAlertsMap()
+    {
+        sessionAlerts.Clear();
+        if (unresolvedAlerts == null) return;
+
+        foreach (var alert in unresolvedAlerts)
+        {
+            // Store the most recent alert per session
+            if (!sessionAlerts.ContainsKey(alert.StudentSessionId) ||
+                sessionAlerts[alert.StudentSessionId]?.CreatedAt < alert.CreatedAt)
+            {
+                sessionAlerts[alert.StudentSessionId] = alert;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the active alert for a session, if any.
+    /// </summary>
+    private HelpAlert? GetSessionAlert(int sessionId)
+    {
+        return sessionAlerts.TryGetValue(sessionId, out var alert) ? alert : null;
+    }
+
+    /// <summary>
+    /// Gets sessions sorted with alerts at the top (REQ-DASH-009).
+    /// </summary>
+    private IEnumerable<StudentSession> GetSortedSessions()
+    {
+        if (sessions == null) return Enumerable.Empty<StudentSession>();
+
+        return sessions
+            .OrderByDescending(s => s.HasActiveAlert)
+            .ThenByDescending(s => s.JoinedAt);
+    }
+
+    /// <summary>
+    /// Toggles the expansion state of a student row.
+    /// </summary>
+    private void ToggleExpansion(int sessionId)
+    {
+        if (expandedStudents.Contains(sessionId))
+        {
+            expandedStudents.Remove(sessionId);
+        }
+        else
+        {
+            expandedStudents.Add(sessionId);
+        }
+    }
+
+    /// <summary>
+    /// Handles resolving an alert (REQ-DASH-007).
+    /// </summary>
+    private async Task HandleResolveAlert(int alertId)
+    {
+        try
+        {
+            // Find alert from sessionAlerts (authoritative source for displayed alerts)
+            var alertEntry = sessionAlerts.FirstOrDefault(kvp => kvp.Value?.Id == alertId);
+            if (alertEntry.Value == null) return;
+
+            var sessionId = alertEntry.Key;
+            int groupId = GroupId;
+
+            // Resolve the alert
+            await AlertService.ResolveAlertAsync(alertId);
+
+            // Notify via SignalR
+            await HubNotificationService.NotifyAlertResolvedAsync(groupId, alertId);
+
+            // Update local state
+            sessionAlerts[sessionId] = null;
+
+            var session = sessions?.FirstOrDefault(s => s.Id == sessionId);
+            if (session != null)
+            {
+                session.HasActiveAlert = false;
+                session.AlertType = null;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error resolving alert {AlertId}", alertId);
+        }
+    }
+
+    /// <summary>
+    /// Gets the alert data for the AlertPanel component.
+    /// </summary>
+    private IEnumerable<AlertPanel.AlertWithNickname> GetAlertPanelData()
+    {
+        if (sessions == null || sessionAlerts == null)
+            return Enumerable.Empty<AlertPanel.AlertWithNickname>();
+
+        return sessionAlerts
+            .Where(kvp => kvp.Value != null)
+            .Select(kvp =>
+            {
+                var session = sessions.FirstOrDefault(s => s.Id == kvp.Key);
+                var nickname = session?.Nickname ?? "Unknown";
+                return new AlertPanel.AlertWithNickname(kvp.Value!, nickname);
+            });
+    }
+
+    /// <summary>
+    /// Toggles the QR code display.
+    /// </summary>
+    private void ToggleQRCode()
+    {
+        showQRCode = !showQRCode;
+    }
+
+    /// <summary>
+    /// Opens the chat history modal for a specific student session.
+    /// </summary>
+    private void HandleViewFullChat(int sessionId)
+    {
+        chatModalSession = sessions?.FirstOrDefault(s => s.Id == sessionId);
+        if (chatModalSession != null)
+        {
+            showChatModal = true;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Closes the chat history modal.
+    /// </summary>
+    private void CloseChatModal()
+    {
+        showChatModal = false;
+        chatModalSession = null;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Navigates back to the groups list.
+    /// </summary>
+    private void NavigateToGroups()
+    {
+        NavigationManager.NavigateTo("/groups");
+    }
+
+    /// <summary>
+    /// Disposes event subscriptions when the component is disposed.
+    /// </summary>
+    public void Dispose()
+    {
+        UnsubscribeFromEvents();
+        Logger.LogDebug("GroupDashboard disposed, unsubscribed from events for group {GroupId}", GroupId);
+    }
+}

@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "description": "Create the IGroupService interface. Define all method signatures as specified in the task:\n\n1. Task<Group> CreateGroupAsync(string name, string goalDescription, int teacherId) - Creates a new group, generates join code, calls LLM for goal interpretation\n2. Task<GoalInterpretation> GetGoalInterpretationAsync(int groupId) - Retrieves the stored goal interpretation for a group (returns deserialized from Group.GoalInterpretation JSON)\n3. Task ConfirmGoalInterpretationAsync(int groupId) - Sets Group.IsConfirmed = true to make group joinable\n4. Task RejectGoalInterpretationAsync(int groupId, string newGoalDescription) - Updates Group.GoalDescription and triggers new LLM interpretation, stores result\n5. Task<Group?> GetGroupByJoinCodeAsync(string joinCode) - Finds group by join code\n6. Task<IEnumerable<Group>> GetTeacherGroupsAsync(int teacherId) - Returns all groups for a teacher with their student sessions for active count\n7. string GenerateJoinCode() - Generates unique 6-8 character alphanumeric join code\n\nUse namespace ProgressPath.Services and add XML documentation for each method referencing REQ-GROUP-001 through REQ-GROUP-013.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the IQRCodeService interface with a single method:\n\n1. string GenerateQRCodeBase64(string joinUrl) - Takes a join URL and returns base64-encoded PNG image data\n\nAdd XML documentation referencing REQ-GROUP-012. Keep the interface minimal and focused on QR generation only.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IQRCodeService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the QRCodeService implementation using QRCoder library:\n\n1. Add using statements: QRCoder\n2. Create class QRCodeService implementing IQRCodeService\n3. Implement GenerateQRCodeBase64 method:\n   - Create QRCodeGenerator instance\n   - Call CreateQrCode(joinUrl, QRCodeGenerator.ECCLevel.Q) for error correction\n   - Create PngByteQRCode from QR code data\n   - Get PNG bytes with GetGraphic(10) for 10px per module size\n   - Convert to base64: Convert.ToBase64String(pngBytes)\n   - Return with data URI prefix: \"data:image/png;base64,\" + base64String\n4. The service is stateless, no constructor dependencies needed",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/QRCodeService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the GroupService implementation:\n\n1. Add using statements: System.Text.Json, Microsoft.EntityFrameworkCore, ProgressPath.Data, ProgressPath.Models, ProgressPath.Models.DTOs\n\n2. Inject dependencies via constructor:\n   - ProgressPathDbContext _dbContext\n   - ILLMService _llmService\n   - IConfiguration _configuration (for APPLICATION_BASE_URL)\n   - ILogger<GroupService> _logger\n\n3. Define constants:\n   - const int JoinCodeLength = 6 (minimum per REQ-GROUP-013)\n   - const string JoinCodeChars = \"ABCDEFGHJKLMNPQRSTUVWXYZ23456789\" (alphanumeric, excluding confusing chars like 0/O, 1/I/L)\n   - const int MaxGoalDescriptionLength = 500 (REQ-GROUP-004)\n\n4. Implement GenerateJoinCode():\n   - Use Random.Shared for thread safety\n   - Generate random string from JoinCodeChars\n   - Length 6 characters per REQ-GROUP-013\n\n5. Implement CreateGroupAsync:\n   - Validate goalDescription length <= 500 chars, throw ArgumentException if exceeded\n   - Generate unique join code (check uniqueness via loop with GetGroupByJoinCodeAsync)\n   - Create Group entity with Name, GoalDescription, JoinCode, TeacherId, CreatedAt = DateTime.UtcNow\n   - Call _llmService.InterpretGoalAsync(goalDescription)\n   - Set Group.GoalType, Group.TotalSteps, Group.GoalInterpretation (serialize to JSON), Group.WelcomeMessage from interpretation\n   - Group.IsConfirmed = false initially\n   - Add to DbContext and SaveChangesAsync\n   - Return created group\n\n6. Implement GetGoalInterpretationAsync:\n   - Find group by id, throw if not found\n   - Deserialize Group.GoalInterpretation JSON to GoalInterpretation DTO\n   - If null, return GoalInterpretation.Empty\n\n7. Implement ConfirmGoalInterpretationAsync:\n   - Find group by id, throw if not found\n   - Set IsConfirmed = true\n   - SaveChangesAsync\n\n8. Implement RejectGoalInterpretationAsync:\n   - Find group by id, throw if not found\n   - Validate newGoalDescription length <= 500\n   - Update GoalDescription\n   - Call _llmService.InterpretGoalAsync with new description\n   - Update GoalType, TotalSteps, GoalInterpretation, WelcomeMessage\n   - Keep IsConfirmed = false\n   - SaveChangesAsync\n\n9. Implement GetGroupByJoinCodeAsync:\n   - Query Groups.FirstOrDefaultAsync(g => g.JoinCode == joinCode)\n   - Case-insensitive comparison using ToUpper()\n\n10. Implement GetTeacherGroupsAsync:\n    - Query Groups.Where(g => g.TeacherId == teacherId)\n    - Include(g => g.StudentSessions) for active student count\n    - OrderByDescending(g => g.CreatedAt)\n    - Return as list",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Register the new services in the DI container. Add two lines after the LLMService registration (around line 55):\n\n1. builder.Services.AddScoped<IGroupService, GroupService>();\n2. builder.Services.AddSingleton<IQRCodeService, QRCodeService>();\n\nNote: QRCodeService is singleton since it's stateless. GroupService is scoped since it uses DbContext.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Join code uniqueness: The GenerateJoinCode method generates codes randomly, but CreateGroupAsync must verify uniqueness by checking against existing groups in the database before saving. Use a retry loop (max ~10 attempts) to generate a new code if collision occurs.",
+    "Goal description validation: Enforce 500 character max (REQ-GROUP-004) with clear ArgumentException message. Validate early in both CreateGroupAsync and RejectGoalInterpretationAsync.",
+    "LLM failure handling: If InterpretGoalAsync throws LLMServiceException during CreateGroupAsync or RejectGoalInterpretationAsync, let the exception propagate. The controller/UI layer should catch and display a retry option (REQ-GROUP-011).",
+    "Case sensitivity of join codes: Generate codes in uppercase and use case-insensitive comparison in GetGroupByJoinCodeAsync using ToUpper() to ensure /join/ABC123 and /join/abc123 both work.",
+    "QRCoder usage: Use PngByteQRCode class (not BitmapByteQRCode which requires System.Drawing) for cross-platform compatibility on Linux Azure App Service. GetGraphic(10) creates 10 pixels per QR module.",
+    "Configuration for base URL: The APPLICATION_BASE_URL is needed for QR code generation but is not used in GroupService directly. It will be used by the calling code (e.g., component) that combines base URL with join code to create the full URL before calling QRCodeService.",
+    "JSON serialization for GoalInterpretation: Use System.Text.Json.JsonSerializer for serializing/deserializing the GoalInterpretation to/from the Group.GoalInterpretation string field. Use same JsonSerializerOptions as LLMService for consistency.",
+    "Thread safety: Use Random.Shared instead of creating new Random() instances for join code generation to ensure thread safety.",
+    "Group navigation properties: When returning groups, consider whether to Include StudentSessions eagerly. GetTeacherGroupsAsync should include them for active student count display on the groups list page."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ILLMService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/LLMService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/DTOs/GoalInterpretation.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AuthenticationService.cs"
+  ]
+}

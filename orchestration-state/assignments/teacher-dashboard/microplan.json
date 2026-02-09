@@ -1,0 +1,140 @@
+{
+  "steps": [
+    {
+      "description": "Create GroupDashboard.razor page with route /groups/{GroupId:int}. Add @attribute [Authorize] and @page directive. Inject IGroupService, IStudentSessionService, IAlertService, IChatService, IAuthenticationService, IQRCodeService, AuthenticationStateProvider, NavigationManager, IConfiguration, and IJSRuntime. Define component parameters for GroupId (int) and internal state fields: Group? group, IEnumerable<StudentSession>? sessions, IEnumerable<HelpAlert>? unresolvedAlerts, Dictionary<int, HelpAlert?> sessionAlerts (maps sessionId to active alert), bool isLoading, string? errorMessage, User? currentUser, string? qrCodeDataUri, HashSet<int> expandedStudents (for tracking which rows are expanded), List<ToastMessage> toasts (for notification management).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "create"
+    },
+    {
+      "description": "Implement OnInitializedAsync in GroupDashboard.razor: Get auth state and current user via AuthenticationStateProvider and IAuthenticationService. Load the group from DbContext directly (since IGroupService doesn't have GetGroupByIdAsync, use _dbContext.Groups with Include for StudentSessions and HelpAlerts). Verify group.TeacherId == currentUser.Id for authorization (return 403 error if not owner). Load unresolvedAlerts via IAlertService.GetUnresolvedAlertsAsync. Build sessionAlerts dictionary from unresolvedAlerts. Generate QR code via IQRCodeService.GenerateQRCodeBase64(joinUrl). Set isLoading = false.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add OnAfterRenderAsync method in GroupDashboard.razor to subscribe to SignalR hub after first render using IJSRuntime. Create private HubConnection? _hubConnection field. In OnAfterRenderAsync, if firstRender is true: create HubConnection to /progresshub, register handlers for ReceiveProgress, ReceiveAlert, AlertResolved, StudentResumedActivity, and StudentJoined. Call JoinGroupChannel with group.Id.ToString(). Start the connection. Implement IAsyncDisposable to dispose the hub connection.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Implement SignalR event handlers in GroupDashboard.razor: ReceiveProgress handler - find session in sessions list by sessionId, update CurrentProgress, IsCompleted, and call StateHasChanged(). ReceiveAlert handler - add new alert to unresolvedAlerts, update sessionAlerts dictionary, add toast notification (type: 'alert'), call StateHasChanged(). AlertResolved handler - remove alert from unresolvedAlerts by alertId, update sessionAlerts, call StateHasChanged(). StudentResumedActivity handler - add toast notification (type: 'resumed', auto-dismiss 4 seconds) with nickname, call StateHasChanged(). StudentJoined handler - add new session to sessions list, call StateHasChanged().",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Implement the UI layout in GroupDashboard.razor: Header section with 'Back to Groups' link, group name (gradient-text), and QR code button/display. Show loading state while isLoading is true. Show error state if errorMessage is set. Main content area with a scrollable container (max-height for ~30 students). Use GetSortedSessions() helper method that returns sessions ordered by HasActiveAlert descending (alerts first), then by JoinedAt descending. Render StudentRow component for each session, passing session, group.GoalType, group.TotalSteps, alert info, isExpanded state, and event callbacks for toggle expansion and resolve alert.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add helper methods in GroupDashboard.razor: GetSortedSessions() - sorts sessions with alerts at top (REQ-DASH-009). ToggleExpansion(int sessionId) - toggles sessionId in expandedStudents HashSet. HandleResolveAlert(int alertId) - calls IAlertService.ResolveAlertAsync and notifies via IHubNotificationService.NotifyAlertResolvedAsync. RemoveToast(ToastMessage toast) - removes toast from list. CalculateStudentPercentage(StudentSession session) - calculates progress percentage for display.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create StudentRow.razor component in /Components/Teacher/ folder. Define parameters: StudentSession Session, GoalType GoalType, int? TotalSteps, HelpAlert? ActiveAlert, bool IsExpanded, EventCallback OnToggleExpansion, EventCallback<int> OnResolveAlert. The component displays a clickable row with: nickname, progress indicator (progress bar for Percentage goals with percentage text, checkmark icon for completed Binary goals), alert indicators with tooltips (yellow icon for Inactivity, red icon for OffTopic), and 'Mark Resolved' button when alert is present.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+      "action": "create"
+    },
+    {
+      "description": "Implement StudentRow.razor UI: Use inner-card styling with cursor-pointer. Row layout with flex items-center justify-between. Left side: nickname in font-medium. Center: progress indicator - for Percentage: progress bar (like GroupCard pattern with rounded-full divs) and percentage text; for Binary: checkmark SVG icon (teal color) when IsCompleted, empty circle when not. Right side: alert indicators section with icons - if ActiveAlert.AlertType == Inactivity, show yellow/orange clock/timer SVG with title tooltip 'Inactive for X minutes' (calculate from CreatedAt); if OffTopic, show red warning SVG with title 'Off-topic messages'. Add 'Mark Resolved' button (small glow-button style) that calls OnResolveAlert.InvokeAsync(ActiveAlert.Id). Add expand/collapse chevron icon.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add expanded detail section to StudentRow.razor: When IsExpanded is true, render a div below the row with transition animation (slide-down effect). Inside, render StudentDetail component passing Session.Id and Session.Nickname.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create StudentDetail.razor component in /Components/Teacher/ folder. Define parameters: int SessionId, string Nickname. Inject IChatService. Add internal state: IEnumerable<ChatMessage>? progressMessages, bool isLoading. In OnInitializedAsync or OnParametersSetAsync, load progress messages via IChatService.GetProgressMessagesAsync(SessionId).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+      "action": "create"
+    },
+    {
+      "description": "Implement StudentDetail.razor UI: Show loading spinner while isLoading. Display 'Key Progress Messages' header. For each message in progressMessages, show a card with: timestamp (formatted), message content (with green left border to indicate ContributesToProgress). If no progress messages, show 'No progress messages yet' placeholder. Add 'View Full Chat' button at bottom that links to /groups/{GroupId}/students/{SessionId}/chat (or opens modal - for simplicity use a link, though full chat page would be a separate implementation). Style with inner-card pattern and appropriate spacing.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentDetail.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create ToastContainer.razor component in /Components/Shared/ folder. Define parameter: List<ToastMessage> Toasts and EventCallback<ToastMessage> OnDismiss. The ToastMessage class should be defined (as a nested class or separate file) with properties: string Id (guid), string Message, string Type ('alert' or 'resumed'), DateTime CreatedAt. The container is positioned fixed at top-right of screen, displays toasts in a vertical stack with z-50. Each toast has appropriate styling (glow border, semi-transparent background), dismiss button, and auto-dismiss logic for 'resumed' type (4 seconds per REQ-AI-017).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor",
+      "action": "create"
+    },
+    {
+      "description": "Implement ToastContainer.razor auto-dismiss logic: For 'resumed' type toasts, use Timer or Task.Delay in OnAfterRenderAsync to automatically invoke OnDismiss after 4 seconds. Each toast shows: for 'alert' type - red/pink border with 'New Alert: {nickname} - {alertType}' message; for 'resumed' type - teal border with '{nickname} has resumed activity' message. Animate toast entry/exit with CSS transitions.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add ToastMessage class definition. This can be added as a nested class inside ToastContainer.razor or as a separate Models/ToastMessage.cs file. Properties: string Id (set to Guid.NewGuid().ToString()), string Message, string Type (alert or resumed), DateTime CreatedAt, string? Nickname (for display).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Integrate ToastContainer into GroupDashboard.razor: Add ToastContainer component at the end of the component markup, passing toasts list and OnDismiss handler. The OnDismiss handler removes the toast from the toasts list and calls StateHasChanged().",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add method GetGroupByIdAsync to IGroupService interface: Task<Group?> GetGroupByIdAsync(int groupId, int teacherId) - retrieves a group by ID only if owned by the specified teacher. This ensures authorization at the service level.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Implement GetGroupByIdAsync in GroupService: Query _dbContext.Groups with .Include(g => g.StudentSessions).ThenInclude(s => s.HelpAlerts) where g.Id == groupId && g.TeacherId == teacherId. Return null if not found or not owned by teacher. Log warning if group exists but teacher mismatch (security event).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Add CSS styles to app.css for toast notifications: .toast-container positioning (fixed top-4 right-4 z-50, flex flex-col gap-2), .toast-item styling (inner-card with additional border colors based on type), .toast-alert (border-color using --color-primary), .toast-resumed (border-color using --color-tertiary), .toast-enter and .toast-exit animations for smooth transitions, and .student-row-expanded animation for detail section expansion.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Add overflow and scrolling styles to app.css: .student-list-container with max-height: calc(100vh - 300px), overflow-y: auto, and custom scrollbar styling to match the theme (thin scrollbar with purple/teal colors). Add .alert-indicator styles for the icon containers with appropriate sizing and hover effects.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Update _Imports.razor to add any new using statements if needed, though existing imports should cover most needs. Ensure Microsoft.AspNetCore.SignalR.Client is available if not already present (may need to add using for HubConnection).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "SignalR connection should be established after first render (OnAfterRenderAsync) to ensure JavaScript interop is available. Use HubConnectionBuilder from Microsoft.AspNetCore.SignalR.Client package.",
+    "Authorization must be verified - ensure the teacher owns the group before displaying data. The GetGroupByIdAsync method should check teacherId to prevent unauthorized access.",
+    "For ~30 concurrent students (REQ-DASH-008), use efficient sorting and avoid unnecessary re-renders. Consider using @key directive on StudentRow components keyed by session.Id.",
+    "Toast auto-dismiss for 'resumed' type should use CancellationToken to handle component disposal during the 4-second delay to prevent memory leaks or exceptions.",
+    "Progress percentage calculation: For Percentage goals use (CurrentProgress / TotalSteps) * 100 rounded to int. For Binary goals, show checkmark when IsCompleted.",
+    "Alert tooltip content for inactivity should calculate minutes from DateTime.UtcNow - alert.CreatedAt to show 'Inactive for X minutes'.",
+    "HubConnection disposal is critical - implement IAsyncDisposable and call DisposeAsync on _hubConnection when component is disposed.",
+    "The StudentDetail component should load messages lazily when expanded to avoid loading data for all students upfront.",
+    "QR code display can reuse the existing QRCodeDisplay component pattern or show inline with a toggle button.",
+    "Sorting students with alerts at top (REQ-DASH-009): Use OrderByDescending(s => s.HasActiveAlert).ThenByDescending(s => s.JoinedAt).",
+    "The 'View Full Chat' feature mentioned in StudentDetail would navigate to a chat history page - this is referenced but may need a separate implementation for the full chat page.",
+    "Consider debouncing StateHasChanged calls if SignalR events come in rapid succession to prevent UI jank."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupsList.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/CreateGroup.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GroupCard.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/QRCodeDisplay.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs/ProgressHub.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IAlertService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AlertService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IGroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/GroupService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IHubNotificationService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/HubNotificationService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor"
+  ]
+}

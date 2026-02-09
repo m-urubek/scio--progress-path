@@ -1,0 +1,55 @@
+{
+  "considerations": [
+    "The SuperSmashHoesV2 reference uses hardcoded subscription IDs and resource group names - the Progress Path scripts need to use configurable values from deploy-config.sh",
+    "The reference project is Node.js based with npm build steps - Progress Path is a .NET 8 Blazor Server app and needs dotnet publish commands instead",
+    "The Azure scripts contain sensitive credentials in deploy-config.sh which is correctly gitignored - must use template values for the config file",
+    "Deploy scripts need to be adapted for .NET deployment workflow: dotnet publish -> create package -> zip -> deploy",
+    "SuperSmashHoesV2 uses lftp for FTP operations during full deploy - this may not be necessary for simple .NET deployments, but pattern should be preserved",
+    "The quota check script uses jq to parse JSON - ensure it's noted as a dependency",
+    "Docker tasks should reference docker-compose.yml which already exists in the project",
+    "Azure Free tier has WP stop request limits - scripts include quota checking logic to prevent exceeding limits",
+    "VS Code settings.json with progresspath.azure.* settings are for documentation purposes - they cannot be directly used in shell scripts without additional tooling",
+    "The .azure/ directory is already listed in .gitignore so no modification needed for that entry"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/SuperSmashHoesV2/.azure/deploy-config.sh",
+    "/Users/mu/Coding/SuperSmashHoesV2/.azure/deploy.sh",
+    "/Users/mu/Coding/SuperSmashHoesV2/.azure/soft-deploy.sh",
+    "/Users/mu/Coding/SuperSmashHoesV2/.azure/check-quota.sh",
+    "/Users/mu/Coding/scio--progress-path/docker-compose.yml",
+    "/Users/mu/Coding/scio--progress-path/.gitignore",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj"
+  ],
+  "steps": [
+    {
+      "description": "Create VS Code tasks.json with the following task definitions: 1) 'Build for Deployment' task that runs 'dotnet publish -c Release -o ./deploy-package' in the ProgressPath directory, 2) 'Prepare Deployment Package' task that creates deploy-package/ directory structure, 3) 'Create Zip Package' task that runs 'zip -rq deploy.zip .' from deploy-package directory, 4) 'Deploy to App Service' task that runs 'az webapp deploy --resource-group ${config:progresspath.azure.resourceGroup} --name ${config:progresspath.azure.appName} --src-path deploy.zip --type zip', 5) 'Full Deploy' task that runs '.azure/deploy.sh' as shell script, 6) 'Soft Deploy' task that runs '.azure/soft-deploy.sh', 7) 'Check Quota' task that runs '.azure/check-quota.sh', 8) 'Restart App' task that runs 'az webapp restart --resource-group ${config:progresspath.azure.resourceGroup} --name ${config:progresspath.azure.appName}', 9) Docker tasks: 'Docker: Start' (docker compose up --build), 'Docker: Start (Background)' (docker compose up --build -d), 'Docker: Stop' (docker compose down), 'Docker: Stop & Clean' (docker compose down -v), 'Docker: Logs' (docker compose logs -f), 'Docker: Rebuild' (docker compose up --build --force-recreate). Use task type 'shell' for all tasks, set presentation options with panel: 'shared', and define proper task dependencies where applicable (e.g., Create Zip depends on Prepare Deployment Package).",
+      "file": "/Users/mu/Coding/scio--progress-path/.vscode/tasks.json",
+      "action": "create"
+    },
+    {
+      "description": "Create VS Code settings.json with configurable Azure values for the deployment tasks. Define settings: 'progresspath.azure.appName' with a placeholder value 'progress-path' and 'progresspath.azure.resourceGroup' with placeholder value 'progress-path-rg'. Add a comment block explaining these are Azure deployment configuration values that should be updated with actual Azure resource names.",
+      "file": "/Users/mu/Coding/scio--progress-path/.vscode/settings.json",
+      "action": "create"
+    },
+    {
+      "description": "Create deploy-config.sh template script based on SuperSmashHoesV2 pattern. Include: 1) Shebang (#!/bin/bash), 2) Comment header explaining this is Azure Deployment Configuration, 3) Export variables with placeholder/template values: AZURE_APP_NAME='progress-path', AZURE_RESOURCE_GROUP='progress-path-rg', AZURE_SUBSCRIPTION_ID='your-subscription-id', AZURE_APP_URL='https://your-app.azurewebsites.net'. Add comment noting user should fill in actual values from their Azure portal.",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/deploy-config.sh",
+      "action": "create"
+    },
+    {
+      "description": "Create deploy.sh full deployment script adapted for .NET Blazor Server. Include: 1) Shebang and set -e for error handling, 2) SCRIPT_DIR and PROJECT_DIR variable setup, 3) Source deploy-config.sh, 4) Color variables for output formatting (RED, YELLOW, GREEN, CYAN, NC), 5) ASCII banner 'Progress Path Azure Deployment (Full)', 6) Azure CLI login check using 'az account show', 7) Quota check step using 'az rest' API call to fetch WP stop requests quota from the subscription's resource group App Service Plan (use $AZURE_SUBSCRIPTION_ID and $AZURE_RESOURCE_GROUP from config), block deployment if quota >= 13, warn if >= 10, 8) Build step using 'dotnet publish -c Release -o deploy-package ProgressPath/ProgressPath.csproj', 9) Create zip step from deploy-package, 10) Stop app step using 'az webapp stop --resource-group $AZURE_RESOURCE_GROUP --name $AZURE_APP_NAME', 11) Start app step using 'az webapp start', 12) Deploy step using 'az webapp deploy --resource-group $AZURE_RESOURCE_GROUP --name $AZURE_APP_NAME --src-path deploy.zip --type zip --async true', 13) Wait/sleep step (30s), 14) Health check step using curl to $AZURE_APP_URL, 15) Success message with app URL.",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/deploy.sh",
+      "action": "create"
+    },
+    {
+      "description": "Create soft-deploy.sh quick deployment script without stop/start. Include: 1) Shebang and set -e, 2) SCRIPT_DIR and PROJECT_DIR setup, 3) Source deploy-config.sh, 4) Color variables, 5) ASCII banner 'Progress Path Soft Deployment', 6) Azure CLI login check, 7) Quota check (same logic as deploy.sh but note soft deploy uses fewer WP stops), 8) Build step using 'dotnet publish -c Release -o deploy-package ProgressPath/ProgressPath.csproj', 9) Create zip step, 10) Deploy step using 'az webapp deploy' (synchronous, no --async), 11) Clean up deploy-package directory, 12) Success message with app URL.",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/soft-deploy.sh",
+      "action": "create"
+    },
+    {
+      "description": "Create check-quota.sh Azure Free tier quota monitoring script. Include: 1) Shebang and set -e, 2) SCRIPT_DIR setup, 3) Source deploy-config.sh, 4) Color variables, 5) ASCII banner 'Azure Quota Status', 6) Azure CLI login check, 7) Fetch quota data using 'az rest --method GET' to the App Service Plan usages API URL constructed from $AZURE_SUBSCRIPTION_ID and $AZURE_RESOURCE_GROUP, 8) Parse WP stop requests using jq (currentValue, limit, nextResetTime), 9) Parse CPU time using jq, 10) Parse storage using jq, 11) Calculate remaining values and percentages, 12) Calculate time until reset with local timezone conversion, 13) Determine status colors based on usage thresholds (green/yellow/red), 14) Display formatted output for WP requests, CPU time, storage, and reset time, 15) Exit with code 2 if quota is at blocking level.",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/check-quota.sh",
+      "action": "create"
+    }
+  ]
+}

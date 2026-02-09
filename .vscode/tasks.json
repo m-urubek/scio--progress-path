@@ -1,0 +1,356 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Azure: Build for Deployment",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "run", "--rm",
+        "-v", "${workspaceFolder}:/src",
+        "-w", "/src",
+        "mcr.microsoft.com/dotnet/sdk:8.0",
+        "dotnet", "publish", "ProgressPath/ProgressPath.csproj", "-c", "Release", "-o", "./deploy-package"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Prepare Deployment Package",
+      "type": "shell",
+      "command": "mkdir -p deploy-package && echo 'Deploy package directory ready'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Create Zip Package",
+      "type": "shell",
+      "command": "cd deploy-package && rm -f ../deploy.zip && zip -rq ../deploy.zip . && echo '✓ Created deploy.zip'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": ["Azure: Build for Deployment"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Deploy to App Service",
+      "type": "shell",
+      "command": "az",
+      "args": [
+        "webapp",
+        "deploy",
+        "--resource-group",
+        "${config:progresspath.azure.resourceGroup}",
+        "--name",
+        "${config:progresspath.azure.appName}",
+        "--src-path",
+        "deploy.zip",
+        "--type",
+        "zip"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": ["Azure: Create Zip Package"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Full Deploy",
+      "type": "shell",
+      "command": "bash",
+      "args": [".azure/deploy.sh"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Soft Deploy",
+      "type": "shell",
+      "command": "bash",
+      "args": [".azure/soft-deploy.sh"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Check Quota",
+      "type": "shell",
+      "command": "bash",
+      "args": [".azure/check-quota.sh"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Restart App",
+      "type": "shell",
+      "command": "az",
+      "args": [
+        "webapp",
+        "restart",
+        "--resource-group",
+        "${config:progresspath.azure.resourceGroup}",
+        "--name",
+        "${config:progresspath.azure.appName}"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Azure: Configure App Settings",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "echo '⚙️  Configuring App Settings...' && source .azure/deploy-config.sh && az webapp config appsettings set --resource-group \"$RESOURCE_GROUP\" --name \"$APP_NAME\" --settings LLM__Provider=\"${LLM__Provider}\" LLM__Model=\"${LLM__Model}\" LLM__ApiKey=\"${LLM__ApiKey}\" GoogleAuth__ClientId=\"${GoogleAuth__ClientId}\" GoogleAuth__ClientSecret=\"${GoogleAuth__ClientSecret}\" && echo '✓ App settings configured'"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Build: TypeScript",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build:ts"],
+      "options": {
+        "cwd": "${workspaceFolder}/ProgressPath"
+      },
+      "problemMatcher": "$tsc",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Build: Tailwind CSS",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build:css"],
+      "options": {
+        "cwd": "${workspaceFolder}/ProgressPath"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Watch: TypeScript",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "watch:ts"],
+      "options": {
+        "cwd": "${workspaceFolder}/ProgressPath"
+      },
+      "problemMatcher": "$tsc-watch",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Watch: Tailwind CSS",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "watch:css"],
+      "options": {
+        "cwd": "${workspaceFolder}/ProgressPath"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Docker: Restart App",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "restart", "app"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Docker: Start",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "--build"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Start (Background)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "--build", "-d"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Docker: Stop",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "down"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Docker: Stop & Clean",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "down", "-v"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Docker: Logs",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "logs", "-f", "-t"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: App Logs",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "logs", "-f", "--tail", "200", "-t", "app"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: App Errors",
+      "type": "shell",
+      "command": "docker compose logs --tail 500 -t app 2>&1 | grep -iE 'fail|error|exception|crit|unhandled' --color=always",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Docker: App Logs (Last 5 min)",
+      "type": "shell",
+      "command": "docker compose logs -t app --since \"$(date -u -v-5M '+%Y-%m-%dT%H:%M:%SZ')\" 2>&1 | grep -v 'dbug:'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Docker: Rebuild",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "--build", "--force-recreate"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Full restart",
+      "type": "shell",
+      "command": "docker compose down -v && docker compose up --build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    
+  ]
+}

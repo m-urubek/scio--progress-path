@@ -1,0 +1,52 @@
+{
+  "steps": [
+    {
+      "description": "Create package.json in the ProgressPath project root with Tailwind CSS v4, PostCSS, and Autoprefixer as dev dependencies. Include scripts: 'build:css' for production build ('npx @tailwindcss/cli -i ./wwwroot/css/app.src.css -o ./wwwroot/css/app.css --minify'), 'watch:css' for development ('npx @tailwindcss/cli -i ./wwwroot/css/app.src.css -o ./wwwroot/css/app.css --watch'). Set name to 'progresspath-styles', version '1.0.0', private: true.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/package.json",
+      "action": "create"
+    },
+    {
+      "description": "Create the Tailwind source CSS file that will be compiled. This file uses Tailwind v4's CSS-first approach with @import 'tailwindcss' and @theme directive. Include: (1) @import 'tailwindcss' at top, (2) @theme block defining custom colors (--color-primary: #ff6b9d, --color-primary-50 through -900 shades, --color-secondary: #c084fc with shades, --color-tertiary: #22d3d8 with shades, --color-accent: #a78bfa, --color-highlight: #f0abfc, --color-dark-bg: #0f0a1a, --color-dark-surface: #1a0f2e), font families (--font-heading: 'Outfit', sans-serif; --font-body: 'Inter', sans-serif), custom shadows for glow effects (--shadow-glow-sm, --shadow-glow, --shadow-glow-lg, --shadow-glow-pink, --shadow-glow-purple), and animation definitions (--animate-glow-pulse, --animate-float). (3) @keyframes for glow-pulse (3s ease-in-out infinite, box-shadow transition from 20px to 30px spread with teal glow) and float (6s ease-in-out infinite, translateY from 0 to -10px). (4) Base styles for html (scroll-behavior: smooth, overflow-x: hidden) and body (font-family: var(--font-body), background-color: var(--color-dark-bg), color: white). (5) Heading styles (h1-h6 use font-family: var(--font-heading)). (6) Component classes: .glow-container (transparent bg, 1.5rem border-radius, 1px solid rgba(34,211,216,0.4) border, multi-layer box-shadow with teal glow, hover state with increased glow), .inner-card (1rem border-radius, 1.5rem padding, rgba(192,132,252,0.1) bg, 1px solid rgba(192,132,252,0.2) border, backdrop-filter blur(8px), hover states), .gradient-text (linear-gradient from primary to secondary to tertiary, background-clip: text, color: transparent), .gradient-text-pink (primary to secondary gradient), .glow-button (0.75rem 1.5rem padding, 1rem border-radius, font-heading, gradient bg from primary to secondary, white text, glow shadow, hover with scale(1.05) and enhanced glow), .animate-glow (animation: glow-pulse 3s ease-in-out infinite). Reference the TherapistTemplate index.css for exact values.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+      "action": "create"
+    },
+    {
+      "description": "Update the existing app.css file to be the compiled output location. For initial development before first npm build, replace the existing content with the compiled Tailwind output structure: keep the CSS variables and base styles, add Tailwind's base/components/utilities layer outputs. This file will be overwritten by the Tailwind build process, but provide initial working styles including all the component classes (.glow-container, .inner-card, .gradient-text, .glow-button) and keyframe animations so the app works before npm install is run.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Update App.razor to add Google Fonts link for Outfit and Inter fonts in the head section. Add: <link rel='preconnect' href='https://fonts.googleapis.com'>, <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>, <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap' rel='stylesheet'>. Place these links before the app.css stylesheet link.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create a postcss.config.js file in the ProgressPath root for PostCSS configuration (required by Tailwind v4). Export default configuration with plugins array containing '@tailwindcss/postcss' and 'autoprefixer'.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/postcss.config.js",
+      "action": "create"
+    },
+    {
+      "description": "Update the .csproj file to add a Target that runs npm build before the main build. Add a Target named 'BuildTailwind' with BeforeTargets='Build' and Condition that checks if node_modules exists. The Target should execute npm run build:css. Also add an ItemGroup that excludes node_modules from the project. This ensures Tailwind CSS is compiled as part of the dotnet build process.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Tailwind v4 uses CSS-first configuration (@theme directive) instead of tailwind.config.js - follow the TherapistTemplate pattern exactly",
+    "The package.json should use @tailwindcss/cli for building since this is not a Vite/React project like TherapistTemplate",
+    "Initial app.css should contain working styles so the app functions before npm install is run (fallback)",
+    "The .csproj MSBuild integration should be conditional - only run npm build if node_modules exists to avoid build failures on fresh clones before npm install",
+    "Google Fonts preconnect links improve loading performance and should come before the font CSS link",
+    "The app.src.css is the source file that Tailwind compiles from; app.css is the output that Blazor references",
+    "For local development, developers need to run 'npm install' once and then either 'npm run watch:css' for hot reload or rely on dotnet build to compile CSS",
+    "Consider adding node_modules/ to .gitignore if not already present",
+    "The glow effects use rgba colors with specific opacity values - maintain exact values from TherapistTemplate for visual consistency",
+    "Font weights: Outfit needs 400,500,600,700 for headings; Inter needs 400,500,600 for body text"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/TherapistTemplate/frontend/src/index.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/ProgressPath.csproj"
+  ]
+}

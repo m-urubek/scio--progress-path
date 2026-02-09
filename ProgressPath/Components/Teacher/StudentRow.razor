@@ -1,0 +1,234 @@
+@using ProgressPath.Models
+
+<div class="student-row inner-card cursor-pointer @(ActiveAlert != null ? "student-row-alert" : "")"
+     @onclick="HandleToggleExpansion">
+    <div class="flex items-center justify-between gap-4">
+        <!-- Left: Nickname -->
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+            <!-- Expand/Collapse Chevron -->
+            <div class="text-gray-400 transition-transform duration-200 @(IsExpanded ? "rotate-90" : "")">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </div>
+
+            <!-- Nickname -->
+            <span class="font-medium truncate">@Session.Nickname</span>
+        </div>
+
+        <!-- Center: Progress Indicator -->
+        <div class="flex items-center gap-3 flex-shrink-0">
+            @if (GoalType == GoalType.Binary)
+            {
+                <!-- Binary Goal: Checkmark when complete -->
+                @if (IsCompleted)
+                {
+                    <div class="flex items-center justify-center w-8 h-8 rounded-full"
+                         style="background: linear-gradient(to right, var(--color-tertiary), var(--color-secondary));">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <span class="text-sm font-medium" style="color: var(--color-tertiary);">Complete</span>
+                }
+                else
+                {
+                    <div class="w-8 h-8 rounded-full border-2 opacity-50"
+                         style="border-color: var(--color-secondary);"></div>
+                    <span class="text-sm opacity-75">In Progress</span>
+                }
+            }
+            else
+            {
+                <!-- Percentage Goal: Progress Bar -->
+                var percentage = CalculatePercentage();
+                <div class="flex items-center gap-3">
+                    <div class="w-24 h-2 rounded-full" style="background: rgba(192, 132, 252, 0.2);">
+                        <div class="h-full rounded-full transition-all duration-300"
+                             style="width: @(percentage)%; background: linear-gradient(to right, var(--color-primary), var(--color-secondary));">
+                        </div>
+                    </div>
+                    <span class="text-sm font-medium" style="min-width: 40px;">
+                        @(percentage)%
+                    </span>
+                </div>
+            }
+        </div>
+
+        <!-- Right: Alert Indicators & Actions -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+            @if (ActiveAlert != null)
+            {
+                <!-- Alert Icon with Tooltip -->
+                @if (ActiveAlert.AlertType == AlertType.Inactivity)
+                {
+                    <!-- Inactivity Alert (Yellow/Orange) - REQ-DASH-010 -->
+                    <div class="alert-indicator alert-indicator-inactivity"
+                         title="@GetInactivityTooltip()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                }
+                else
+                {
+                    <!-- Off-Topic Alert (Red) - REQ-DASH-011 -->
+                    <div class="alert-indicator alert-indicator-offtopic"
+                         title="Off-topic messages">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                }
+
+                <!-- Mark Resolved Button - REQ-DASH-007 -->
+                <button class="resolve-button"
+                        @onclick:stopPropagation="true"
+                        @onclick="HandleResolveClick"
+                        title="Mark as resolved">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span class="hidden sm:inline ml-1">Resolve</span>
+                </button>
+            }
+            else if (IsCompleted)
+            {
+                <!-- Completed Badge -->
+                <span class="text-xs px-2 py-1 rounded-full" style="background: rgba(34, 211, 216, 0.2); color: var(--color-tertiary);">
+                    Completed
+                </span>
+            }
+        </div>
+    </div>
+
+    <!-- Expanded Detail Section -->
+    @if (IsExpanded)
+    {
+        <div class="student-row-expanded mt-4 pt-4" style="border-top: 1px solid rgba(192, 132, 252, 0.2);" @onclick:stopPropagation="true">
+            <StudentDetail SessionId="Session.Id"
+                          Nickname="Session.Nickname"
+                          GroupId="Session.GroupId"
+                          GoalType="GoalType"
+                          TotalSteps="TotalSteps"
+                          CurrentProgress="CurrentProgress"
+                          IsCompleted="IsCompleted"
+                          OnViewFullChat="HandleViewFullChat" />
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The student session to display.
+    /// </summary>
+    [Parameter]
+    public StudentSession Session { get; set; } = null!;
+
+    /// <summary>
+    /// The current progress value (passed separately for Blazor change detection).
+    /// </summary>
+    [Parameter]
+    public int CurrentProgress { get; set; }
+
+    /// <summary>
+    /// Whether the goal is completed (passed separately for Blazor change detection).
+    /// </summary>
+    [Parameter]
+    public bool IsCompleted { get; set; }
+
+    /// <summary>
+    /// The type of goal for this group.
+    /// </summary>
+    [Parameter]
+    public GoalType GoalType { get; set; }
+
+    /// <summary>
+    /// Total steps for percentage goals.
+    /// </summary>
+    [Parameter]
+    public int? TotalSteps { get; set; }
+
+    /// <summary>
+    /// The active alert for this student, if any.
+    /// </summary>
+    [Parameter]
+    public HelpAlert? ActiveAlert { get; set; }
+
+    /// <summary>
+    /// Whether this row is expanded to show details.
+    /// </summary>
+    [Parameter]
+    public bool IsExpanded { get; set; }
+
+    /// <summary>
+    /// Callback when the row expansion is toggled.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnToggleExpansion { get; set; }
+
+    /// <summary>
+    /// Callback when the resolve button is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnResolveAlert { get; set; }
+
+    /// <summary>
+    /// Callback when "View Full Chat" is clicked.
+    /// Passes the session ID to the parent for modal handling.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnViewFullChat { get; set; }
+
+    /// <summary>
+    /// Calculates the progress percentage for display (REQ-GOAL-012).
+    /// </summary>
+    private int CalculatePercentage()
+    {
+        if (GoalType == GoalType.Binary)
+        {
+            return IsCompleted ? 100 : 0;
+        }
+
+        // CurrentProgress is already a percentage (0-100) for percentage goals
+        return Math.Clamp(CurrentProgress, 0, 100);
+    }
+
+    /// <summary>
+    /// Gets the tooltip text for inactivity alerts (REQ-DASH-010).
+    /// </summary>
+    private string GetInactivityTooltip()
+    {
+        if (ActiveAlert == null) return "";
+
+        var inactiveMinutes = (int)(DateTime.UtcNow - ActiveAlert.CreatedAt).TotalMinutes;
+        return $"Inactive for {inactiveMinutes} minutes";
+    }
+
+    /// <summary>
+    /// Handles toggling the row expansion.
+    /// </summary>
+    private async Task HandleToggleExpansion()
+    {
+        await OnToggleExpansion.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Handles the resolve button click.
+    /// </summary>
+    private async Task HandleResolveClick()
+    {
+        if (ActiveAlert != null)
+        {
+            await OnResolveAlert.InvokeAsync(ActiveAlert.Id);
+        }
+    }
+
+    /// <summary>
+    /// Handles the view full chat button click.
+    /// </summary>
+    private async Task HandleViewFullChat()
+    {
+        await OnViewFullChat.InvokeAsync(Session.Id);
+    }
+}

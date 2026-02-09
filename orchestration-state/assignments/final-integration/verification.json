@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/NavMenu.razor",
+      "description": "NavMenu component duplicates the IsActivePath logic that exists in MainLayout.razor. Consider extracting to a shared service or passing as a parameter to reduce code duplication."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\\n    0 Warning(s)\\n    0 Error(s)\\n\\nTime Elapsed 00:00:09.63"
+}

@@ -1,0 +1,77 @@
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# IDE and editor files
+.vs/
+.idea/
+*.user
+*.suo
+*.swp
+*.swo
+*~
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Environment files (contain secrets)
+.env
+.env.*
+!.env.example
+*.env.local
+appsettings.*.local.json
+
+# Local configuration overrides
+appsettings.*.local.json
+
+# Deployment artifacts
+deploy-package/
+deploy.zip
+
+# Azure deployment scripts (contains sensitive configuration)
+.azure/
+
+# SQLite databases (if used for local dev)
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Node.js / npm (Tailwind CSS & TypeScript build)
+node_modules/
+**/node_modules/
+package-lock.json
+
+# Compiled TypeScript output (generated from wwwroot/ts/ sources)
+ProgressPath/wwwroot/js/
+
+# Compiled Tailwind CSS output (generated from wwwroot/css/app.src.css)
+ProgressPath/wwwroot/css/app.css
+
+# Core dumps
+core
+
+# Test coverage and reports
+coverage/
+TestResults/
+*.trx
+
+# State files (orchestration/planner artifacts)
+state/
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+
+# Workspace files
+*.code-workspace
+
+app.css

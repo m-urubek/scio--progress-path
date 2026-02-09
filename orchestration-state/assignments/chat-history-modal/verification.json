@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor",
+      "description": "Math/code rendering is prepared with data attributes but actual KaTeX/highlight.js integration is not implemented (noted in comments as 'can be added later'). This is acceptable for the current scope as per REQ-CHAT-003/004 which require support for math/code but JS interop can be added incrementally."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:08.70"
+}

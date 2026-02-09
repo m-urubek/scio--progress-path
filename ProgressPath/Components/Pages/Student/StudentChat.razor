@@ -1,0 +1,786 @@
+@page "/chat/{SessionId:int}"
+@attribute [AllowAnonymous]
+@using System.Text.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@using ProgressPath.Models
+@using ProgressPath.Data
+@using ProgressPath.Hubs
+@using ProgressPath.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IChatService ChatService
+@inject IStudentSessionService StudentSessionService
+@inject IHubNotificationService HubNotificationService
+@inject IProgressEventService ProgressEventService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject ILogger<StudentChat> Logger
+@inject IConfiguration Configuration
+@inject IDbContextFactory<ProgressPathDbContext> DbContextFactory
+
+@* StudentChat.razor - Main student chat interface page.
+   REQ-CHAT-001: Welcome message explaining the goal.
+   REQ-CHAT-002: Text message communication with AI tutor.
+   REQ-CHAT-005: Messages in chronological order with timestamps.
+   REQ-GOAL-007: Progress indicator always visible.
+   REQ-GOAL-013: Completion message when 100% reached.
+   REQ-GOAL-014: Chat disabled upon completion. *@
+
+<PageTitle>Chat - Progress Path</PageTitle>
+
+<div class="flex-1 flex flex-col" style="min-height: 0; overflow: hidden;">
+    @switch (pageState)
+    {
+        case PageState.Loading:
+            <div class="flex-1 flex items-center justify-center">
+                <div class="glow-container p-8 text-center">
+                    <div class="flex items-center justify-center gap-3">
+                        <svg class="animate-spin h-8 w-8" style="color: var(--color-tertiary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-lg opacity-75">Loading chat...</p>
+                    </div>
+                </div>
+            </div>
+            break;
+
+        case PageState.NotFound:
+            <div class="flex-1 flex items-center justify-center p-4">
+                <div class="glow-container p-8 text-center" style="max-width: 28rem;">
+                    <div class="join-page-icon join-page-icon-error mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold gradient-text-pink mb-4">Session Not Found</h1>
+                    <p class="text-lg opacity-75">
+                        This chat session doesn't exist or you don't have access to it.
+                    </p>
+                </div>
+            </div>
+            break;
+
+        case PageState.Active:
+            @if (session != null && group != null)
+            {
+                @* Chat Header with Progress - expands when at top of chat, collapses when scrolled *@
+                <div class="flex-shrink-0 px-4 pt-4" style="background: var(--color-dark-bg); backdrop-filter: blur(8px);">
+                    <div class="chat-header glow-container p-4">
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                            @* Group Info - shows welcome message (task list) from AI *@
+                            <div class="flex-1 min-w-0">
+                                <h1 class="text-lg font-semibold gradient-text truncate">
+                                    @group.Name
+                                </h1>
+                                <p class="text-sm opacity-75 @(isHeaderExpanded ? "" : "line-clamp-2") transition-all duration-300">
+                                    @(group.WelcomeMessage ?? group.GoalDescription)
+                                </p>
+                                @if (!isHeaderExpanded && HasLongDescription())
+                                {
+                                    <button @onclick="ToggleHeaderExpanded" 
+                                            class="text-xs mt-1 opacity-60 hover:opacity-100 transition-opacity"
+                                            style="color: var(--color-tertiary);">
+                                        Show more ▼
+                                    </button>
+                                }
+                                else if (isHeaderExpanded && HasLongDescription())
+                                {
+                                    <button @onclick="ToggleHeaderExpanded" 
+                                            class="text-xs mt-1 opacity-60 hover:opacity-100 transition-opacity"
+                                            style="color: var(--color-tertiary);">
+                                        Show less ▲
+                                    </button>
+                                }
+                            </div>
+
+                            @* Progress Indicator *@
+                            <div class="flex-shrink-0">
+                                <ProgressIndicator GoalType="group.GoalType"
+                                                   CurrentProgress="session.CurrentProgress"
+                                                   TotalSteps="group.TotalSteps"
+                                                   IsCompleted="session.IsCompleted" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* Completion Banner *@
+                @if (session.IsCompleted)
+                {
+                    <div class="mx-4 mt-4 flex-shrink-0">
+                        <div class="completion-banner p-4 rounded-xl flex items-center gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full"
+                                 style="background: rgba(255, 255, 255, 0.2);">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-white">Congratulations!</p>
+                                <p class="text-sm text-white opacity-90">You have completed your goal!</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* Chat Messages Area - initial guidance is now a real message stored in DB *@
+                <div id="chat-scroll-container" class="flex-1" style="overflow-y: auto; min-height: 0;">
+                    <ChatMessageList Messages="messages" IsStudentView="true" />
+                </div>
+
+                @* Error Message Display *@
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="mx-4 mb-2 p-3 rounded-lg flex-shrink-0" style="border: 1px solid rgba(255, 107, 157, 0.5); background: rgba(255, 107, 157, 0.1);">
+                        <p class="text-sm" style="color: var(--color-primary);">@errorMessage</p>
+                    </div>
+                }
+
+                @* Chat Input *@
+                <div class="p-4 pt-0 flex-shrink-0">
+                    <ChatInput OnSendMessage="HandleSendMessage"
+                               IsLoading="isSending"
+                               IsDisabled="session.IsCompleted" />
+                </div>
+            }
+            break;
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Route parameter: the student session ID from the URL.
+    /// </summary>
+    [Parameter]
+    public int SessionId { get; set; }
+
+    // Component state
+    private PageState pageState = PageState.Loading;
+    private StudentSession? session;
+    private Group? group;
+    private List<ChatMessage> messages = new();
+    private bool isSending = false;
+    private string? errorMessage;
+    
+    // Header expand/collapse state
+    private bool isHeaderExpanded = true;  // Start expanded when at top
+    private bool manuallyToggled = false;  // Track if user manually toggled
+    private DotNetObjectReference<StudentChat>? dotNetHelper;
+
+    // SignalR connection (backup for multi-tab sync)
+    private HubConnection? hubConnection;
+    private CancellationTokenSource? disposalTokenSource;
+    private bool signalRInitialized = false;
+    
+    // In-process event subscription (primary real-time mechanism for Blazor Server)
+    private bool eventsSubscribed = false;
+
+    /// <summary>
+    /// Page states for the UI state machine.
+    /// </summary>
+    private enum PageState
+    {
+        Loading,
+        NotFound,
+        Active
+    }
+
+    /// <summary>
+    /// Initialize the page by loading session data.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        disposalTokenSource = new CancellationTokenSource();
+
+        try
+        {
+            // Load session with Group navigation property
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            session = await dbContext.StudentSessions
+                .Include(s => s.Group)
+                .FirstOrDefaultAsync(s => s.Id == SessionId);
+
+            if (session == null)
+            {
+                Logger.LogWarning("Student session {SessionId} not found", SessionId);
+                pageState = PageState.NotFound;
+                return;
+            }
+
+            group = session.Group;
+
+            // Load chat history
+            var chatHistory = await ChatService.GetChatHistoryAsync(SessionId);
+            messages = chatHistory.ToList();
+
+            // If no messages exist, create the initial AI guidance message
+            if (!messages.Any())
+            {
+                var initialMessage = await ChatService.CreateInitialGuidanceMessageAsync(SessionId);
+                if (initialMessage != null)
+                {
+                    messages.Add(initialMessage);
+                }
+            }
+
+            pageState = PageState.Active;
+
+            // Subscribe to in-process events for real-time updates
+            // This is more reliable than SignalR loopback for Blazor Server
+            SubscribeToEvents();
+
+            Logger.LogInformation(
+                "Loaded chat for session {SessionId} (student: {Nickname}, group: {GroupName})",
+                SessionId,
+                session.Nickname,
+                group.Name);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading chat for session {SessionId}", SessionId);
+            pageState = PageState.NotFound;
+        }
+    }
+
+    /// <summary>
+    /// Subscribe to in-process events for real-time message and progress updates.
+    /// </summary>
+    private void SubscribeToEvents()
+    {
+        if (eventsSubscribed) return;
+
+        ProgressEventService.OnMessage += HandleMessageEvent;
+        ProgressEventService.OnProgressUpdate += HandleProgressEvent;
+        eventsSubscribed = true;
+        
+        Logger.LogDebug("Subscribed to in-process events for session {SessionId}", SessionId);
+    }
+
+    /// <summary>
+    /// Unsubscribe from in-process events.
+    /// </summary>
+    private void UnsubscribeFromEvents()
+    {
+        if (!eventsSubscribed) return;
+
+        ProgressEventService.OnMessage -= HandleMessageEvent;
+        ProgressEventService.OnProgressUpdate -= HandleProgressEvent;
+        eventsSubscribed = false;
+    }
+
+    /// <summary>
+    /// Handles new message events from the in-process event service.
+    /// Only handles AI responses and system messages - student messages are handled 
+    /// via optimistic UI in HandleSendMessage to avoid duplicates.
+    /// </summary>
+    private void HandleMessageEvent(object? sender, MessageEventArgs e)
+    {
+        // Only handle messages for this session
+        if (e.SessionId != SessionId) return;
+
+        // Skip student messages - they're handled via optimistic UI in HandleSendMessage
+        // This prevents duplicates when the event fires while SendMessageAsync is running
+        if (e.IsFromStudent) return;
+
+        // Check if message already exists (avoid duplicates)
+        if (messages.Any(m => m.Id == e.MessageId)) return;
+
+        var message = new ChatMessage
+        {
+            Id = e.MessageId,
+            StudentSessionId = SessionId,
+            Content = e.Content,
+            IsFromStudent = e.IsFromStudent,
+            IsSystemMessage = e.IsSystemMessage,
+            Timestamp = e.Timestamp,
+            IsOffTopic = e.IsOffTopic,
+            SignificantProgress = e.SignificantProgress
+        };
+
+        messages.Add(message);
+        InvokeAsync(StateHasChanged);
+
+        Logger.LogDebug("Received message {MessageId} via in-process event (system: {IsSystem})", 
+            e.MessageId, e.IsSystemMessage);
+    }
+
+    /// <summary>
+    /// Handles progress update events from the in-process event service.
+    /// </summary>
+    private void HandleProgressEvent(object? sender, ProgressUpdateEventArgs e)
+    {
+        // Only handle progress for this session
+        if (e.SessionId != SessionId) return;
+
+        if (session != null)
+        {
+            session.CurrentProgress = e.CurrentProgress;
+            session.IsCompleted = e.IsCompleted;
+
+            if (e.IsCompleted)
+            {
+                Logger.LogInformation("Goal completed for session {SessionId} via in-process event", SessionId);
+            }
+
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Initialize SignalR connection and JS interop after render.
+    /// JS interop is only available after render in Blazor Server.
+    /// Note: Cannot rely on firstRender because session is loaded asynchronously,
+    /// so session may be null during the first render.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Initialize SignalR when session is loaded (may not be during firstRender due to async loading)
+        if (!signalRInitialized && session != null)
+        {
+            signalRInitialized = true;
+            
+            try
+            {
+                // Initialize header expand/collapse JS interop
+                dotNetHelper = DotNetObjectReference.Create(this);
+                await JSRuntime.InvokeVoidAsync("chatHeaderInterop.initialize", dotNetHelper, "chat-scroll-container");
+                
+                // Create SignalR hub connection
+                // Use internal URL for server-side connection (Docker runs on port 5000 internally)
+                var hubUrl = GetSignalRHubUrl();
+                hubConnection = new HubConnectionBuilder()
+                    .WithUrl(hubUrl)
+                    .WithAutomaticReconnect()
+                    .Build();
+
+                // Register event handlers
+                RegisterHubEventHandlers();
+
+                // Start the connection
+                await hubConnection.StartAsync(disposalTokenSource?.Token ?? CancellationToken.None);
+
+                // Join the student channel
+                await hubConnection.InvokeAsync("JoinStudentChannel", SessionId.ToString());
+
+                Logger.LogInformation("Student {SessionId} connected to SignalR hub", SessionId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to connect to SignalR hub for session {SessionId}", SessionId);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Called by JS interop when scroll position changes.
+    /// Updates header expanded state based on whether user is at top of chat.
+    /// </summary>
+    [JSInvokable]
+    public void UpdateHeaderExpandedState(bool isAtTop)
+    {
+        // If user manually toggled, don't auto-change state
+        if (manuallyToggled) return;
+        
+        if (isHeaderExpanded != isAtTop)
+        {
+            isHeaderExpanded = isAtTop;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    /// <summary>
+    /// Manually toggle the header expanded state.
+    /// </summary>
+    private void ToggleHeaderExpanded()
+    {
+        isHeaderExpanded = !isHeaderExpanded;
+        manuallyToggled = true;  // User took control, disable auto-toggle
+    }
+    
+    /// <summary>
+    /// Check if the description is long enough to warrant expand/collapse.
+    /// </summary>
+    private bool HasLongDescription()
+    {
+        var description = group?.WelcomeMessage ?? group?.GoalDescription;
+        // Roughly 2 lines at typical width is ~100-150 chars, so show button if longer
+        return !string.IsNullOrEmpty(description) && description.Length > 120;
+    }
+
+    /// <summary>
+    /// Registers SignalR event handlers for real-time updates.
+    /// </summary>
+    private void RegisterHubEventHandlers()
+    {
+        if (hubConnection == null) return;
+
+        // ReceiveMessage handler - handles new messages (from other tabs or AI response)
+        // Uses JsonElement because System.Text.Json (the default SignalR protocol) doesn't
+        // support dynamic member access on deserialized payloads.
+        hubConnection.On<JsonElement>(ProgressHub.ClientMethods.ReceiveMessage, (payload) =>
+        {
+            try
+            {
+                int messageId = payload.GetProperty("Id").GetInt32();
+                string content = payload.GetProperty("Content").GetString() ?? "";
+                bool isFromStudent = payload.GetProperty("IsFromStudent").GetBoolean();
+                DateTime timestamp = payload.GetProperty("Timestamp").GetDateTime();
+                bool isOffTopic = payload.TryGetProperty("IsOffTopic", out var offTopicProp) && offTopicProp.GetBoolean();
+                bool significantProgress = payload.TryGetProperty("SignificantProgress", out var progressProp) && progressProp.GetBoolean();
+                bool isSystemMessage = payload.TryGetProperty("IsSystemMessage", out var systemProp) && systemProp.GetBoolean();
+
+                // Check if message already exists (avoid duplicates from optimistic UI)
+                if (!messages.Any(m => m.Id == messageId))
+                {
+                    var message = new ChatMessage
+                    {
+                        Id = messageId,
+                        StudentSessionId = SessionId,
+                        Content = content,
+                        IsFromStudent = isFromStudent,
+                        Timestamp = timestamp,
+                        IsOffTopic = isOffTopic,
+                        SignificantProgress = significantProgress,
+                        IsSystemMessage = isSystemMessage
+                    };
+
+                    messages.Add(message);
+                    InvokeAsync(StateHasChanged);
+
+                    Logger.LogDebug("Received message {MessageId} via SignalR (system: {IsSystem})", messageId, isSystemMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling ReceiveMessage event");
+            }
+        });
+
+        // ReceiveProgress handler - updates progress state
+        hubConnection.On<JsonElement>(ProgressHub.ClientMethods.ReceiveProgress, (payload) =>
+        {
+            try
+            {
+                int sessionId = payload.GetProperty("SessionId").GetInt32();
+                int progress = payload.GetProperty("Progress").GetInt32();
+                bool isCompleted = payload.GetProperty("IsCompleted").GetBoolean();
+
+                if (session != null && sessionId == SessionId)
+                {
+                    session.CurrentProgress = progress;
+                    session.IsCompleted = isCompleted;
+
+                    if (isCompleted)
+                    {
+                        Logger.LogInformation(
+                            "Goal completed for session {SessionId} via SignalR",
+                            SessionId);
+                    }
+
+                    InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error handling ReceiveProgress event");
+            }
+        });
+
+        // Handle reconnecting state (REQ-RT-002)
+        hubConnection.Reconnecting += (exception) =>
+        {
+            Logger.LogWarning(
+                exception,
+                "SignalR connection lost for session {SessionId}, attempting to reconnect...",
+                SessionId);
+
+            return Task.CompletedTask;
+        };
+
+        // Handle reconnection (REQ-RT-003: restore chat history from server)
+        hubConnection.Reconnected += async (connectionId) =>
+        {
+            Logger.LogInformation(
+                "SignalR reconnected for session {SessionId}, connection {ConnectionId}",
+                SessionId,
+                connectionId);
+
+            try
+            {
+                // Rejoin the student channel
+                await hubConnection.InvokeAsync("JoinStudentChannel", SessionId.ToString());
+
+                // Refresh chat history to restore state (REQ-RT-003)
+                // Replace messages entirely to avoid duplicates
+                var chatHistory = await ChatService.GetChatHistoryAsync(SessionId);
+                messages = chatHistory.ToList();
+
+                // Clear any error messages from prior disconnection
+                errorMessage = null;
+
+                // Reload session for progress state
+                await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+                var refreshedSession = await dbContext.StudentSessions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == SessionId);
+
+                if (refreshedSession != null && session != null)
+                {
+                    session.CurrentProgress = refreshedSession.CurrentProgress;
+                    session.IsCompleted = refreshedSession.IsCompleted;
+                }
+
+                await InvokeAsync(StateHasChanged);
+
+                Logger.LogInformation(
+                    "State restored after reconnection for session {SessionId}: {MessageCount} messages, {Progress}% progress",
+                    SessionId,
+                    messages.Count,
+                    session?.CurrentProgress ?? 0);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error restoring state after reconnection for session {SessionId}", SessionId);
+            }
+        };
+
+        // Handle permanent connection loss
+        hubConnection.Closed += (exception) =>
+        {
+            if (exception != null)
+            {
+                Logger.LogError(
+                    exception,
+                    "SignalR connection permanently closed for session {SessionId}",
+                    SessionId);
+            }
+            else
+            {
+                Logger.LogInformation(
+                    "SignalR connection closed for session {SessionId}",
+                    SessionId);
+            }
+
+            return Task.CompletedTask;
+        };
+    }
+
+    /// <summary>
+    /// Handles sending a new message.
+    /// Uses optimistic UI update for immediate feedback, with SignalR for multi-tab sync.
+    /// REQ-GROUP-020: Multiple tabs for same session receive synchronized updates.
+    /// </summary>
+    private async Task HandleSendMessage(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content) || session?.IsCompleted == true)
+        {
+            return;
+        }
+
+        isSending = true;
+        errorMessage = null;
+
+        // Optimistic UI: Add student message immediately with temporary ID
+        var tempStudentMessage = new ChatMessage
+        {
+            Id = -1, // Temporary ID, will be replaced by SignalR
+            StudentSessionId = SessionId,
+            Content = content.Trim(),
+            IsFromStudent = true,
+            Timestamp = DateTime.UtcNow,
+            IsOffTopic = false,
+            SignificantProgress = false
+        };
+        messages.Add(tempStudentMessage);
+        StateHasChanged();
+
+        try
+        {
+            // Send message to server - real messages will arrive via SignalR
+            var aiResponse = await ChatService.SendMessageAsync(SessionId, content);
+
+            // Remove the optimistic student message (SignalR will add the real one)
+            messages.RemoveAll(m => m.Id == -1);
+
+            // If SignalR hasn't delivered the messages yet, add them directly
+            // This handles cases where SignalR is slow or disconnected
+            await RefreshMessagesIfNeeded();
+
+            Logger.LogDebug(
+                "Message sent successfully for session {SessionId}, AI response: {ResponsePreview}",
+                SessionId,
+                aiResponse.Content.Length > 50 ? aiResponse.Content[..50] + "..." : aiResponse.Content);
+        }
+        catch (InvalidOperationException)
+        {
+            // Goal completed - update state
+            Logger.LogInformation(
+                "Attempted to send message after goal completion for session {SessionId}",
+                SessionId);
+
+            if (session != null)
+            {
+                session.IsCompleted = true;
+            }
+
+            // Remove optimistic message
+            messages.RemoveAll(m => m.Id == -1);
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            // REQ-AI-022: Display error message on LLM API failure
+            Logger.LogError(ex, "Error sending message for session {SessionId}", SessionId);
+
+            // Keep the optimistic student message visible (it was persisted)
+            // but remove the temp ID marker
+            var tempMsg = messages.FirstOrDefault(m => m.Id == -1);
+            if (tempMsg != null)
+            {
+                messages.Remove(tempMsg);
+            }
+
+            // Refresh to get the actual persisted message
+            await RefreshMessagesIfNeeded();
+
+            errorMessage = "Sorry, I'm having trouble responding right now. Please try again in a moment.";
+        }
+        finally
+        {
+            isSending = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Gets the SignalR hub URL, handling Docker environment where internal port differs from external.
+    /// </summary>
+    private string GetSignalRHubUrl()
+    {
+        // In Docker, the server runs on port 5000 internally, but NavigationManager may return
+        // the host-mapped port (e.g., 5001). For server-side SignalR connections, use internal URL.
+        var environment = Configuration["ASPNETCORE_ENVIRONMENT"];
+        if (environment == "Development")
+        {
+            // In Docker dev environment, connect to internal port
+            return "http://localhost:5000/progresshub";
+        }
+
+        // For production or other environments, use NavigationManager
+        return NavigationManager.ToAbsoluteUri("/progresshub").ToString();
+    }
+
+    /// <summary>
+    /// Refreshes messages and session progress from the database if SignalR hasn't delivered them.
+    /// </summary>
+    private async Task RefreshMessagesIfNeeded()
+    {
+        try
+        {
+            var latestMessages = await ChatService.GetChatHistoryAsync(SessionId);
+            var latestList = latestMessages.ToList();
+
+            // Only update if we're missing messages
+            if (latestList.Count > messages.Count(m => m.Id > 0))
+            {
+                // Merge: keep existing messages, add any new ones
+                foreach (var msg in latestList)
+                {
+                    if (!messages.Any(m => m.Id == msg.Id))
+                    {
+                        messages.Add(msg);
+                    }
+                }
+
+                // Sort by timestamp
+                messages = messages.Where(m => m.Id > 0).OrderBy(m => m.Timestamp).ToList();
+            }
+
+            // Also refresh session progress in case SignalR didn't deliver the update
+            await RefreshSessionProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh messages for session {SessionId}", SessionId);
+        }
+    }
+
+    /// <summary>
+    /// Refreshes session progress from the database.
+    /// Called after sending a message to ensure progress is up-to-date even if SignalR fails.
+    /// </summary>
+    private async Task RefreshSessionProgressAsync()
+    {
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var updatedSession = await dbContext.StudentSessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == SessionId);
+
+            if (updatedSession != null && session != null)
+            {
+                // Only update if progress has changed
+                if (session.CurrentProgress != updatedSession.CurrentProgress ||
+                    session.IsCompleted != updatedSession.IsCompleted)
+                {
+                    session.CurrentProgress = updatedSession.CurrentProgress;
+                    session.IsCompleted = updatedSession.IsCompleted;
+
+                    Logger.LogDebug(
+                        "Refreshed session progress for {SessionId}: {Progress}, Completed: {IsCompleted}",
+                        SessionId,
+                        session.CurrentProgress,
+                        session.IsCompleted);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh session progress for {SessionId}", SessionId);
+        }
+    }
+
+    /// <summary>
+    /// Disposes SignalR connection, JS interop, and cleanup resources.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        // Unsubscribe from in-process events first
+        UnsubscribeFromEvents();
+        
+        disposalTokenSource?.Cancel();
+        disposalTokenSource?.Dispose();
+        
+        // Dispose JS interop
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("chatHeaderInterop.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Expected during circuit disconnection
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Error disposing chat header JS interop for session {SessionId}", SessionId);
+        }
+        
+        dotNetHelper?.Dispose();
+
+        if (hubConnection != null)
+        {
+            try
+            {
+                await hubConnection.InvokeAsync("LeaveChannels");
+                await hubConnection.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Error disposing SignalR connection for session {SessionId}", SessionId);
+            }
+        }
+    }
+}

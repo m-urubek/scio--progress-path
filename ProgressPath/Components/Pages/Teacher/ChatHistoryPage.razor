@@ -1,0 +1,152 @@
+@page "/groups/{GroupId:int}/students/{SessionId:int}/chat"
+@attribute [Authorize]
+@using ProgressPath.Models
+@using ProgressPath.Data
+@using Microsoft.EntityFrameworkCore
+@inject IChatService ChatService
+@inject IStudentSessionService StudentSessionService
+@inject IGroupService GroupService
+@inject IAuthenticationService AuthService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IDbContextFactory<ProgressPathDbContext> DbContextFactory
+@inject ILogger<ChatHistoryPage> Logger
+
+@* ChatHistoryPage.razor - Full page view for student chat history.
+   Accessible via /groups/{GroupId}/students/{SessionId}/chat
+   REQ-DASH-016, REQ-DASH-017 *@
+
+<PageTitle>@(session?.Nickname ?? "Chat") - Progress Path</PageTitle>
+
+<div class="container mx-auto py-8 px-4">
+    @* Back Navigation *@
+    <div class="mb-6">
+        <a href="/groups/@GroupId" class="text-sm opacity-75 hover:opacity-100 transition flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+    @* Loading State *@
+    @if (isLoading)
+    {
+        <div class="glow-container p-8 text-center">
+            <div class="flex items-center justify-center gap-3">
+                <svg class="animate-spin h-6 w-6" style="color: var(--color-tertiary);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-lg opacity-75">Loading chat history...</p>
+            </div>
+        </div>
+    }
+    @* Error State *@
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="glow-container p-8" style="border-color: rgba(255, 107, 157, 0.5);">
+            <p class="text-lg" style="color: var(--color-primary);">@errorMessage</p>
+            <button class="glow-button mt-4" @onclick="NavigateBack">
+                Return to Dashboard
+            </button>
+        </div>
+    }
+    @* Chat History Content *@
+    else if (session != null && group != null)
+    {
+        @* Use ChatHistoryModal in embedded mode *@
+        <ChatHistoryModal SessionId="session.Id"
+                         Nickname="session.Nickname"
+                         GroupId="group.Id"
+                         GoalType="group.GoalType"
+                         TotalSteps="group.TotalSteps"
+                         CurrentProgress="session.CurrentProgress"
+                         IsCompleted="session.IsCompleted"
+                         IsVisible="true"
+                         IsEmbedded="true" />
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Route parameter: the group ID.
+    /// </summary>
+    [Parameter]
+    public int GroupId { get; set; }
+
+    /// <summary>
+    /// Route parameter: the student session ID.
+    /// </summary>
+    [Parameter]
+    public int SessionId { get; set; }
+
+    private StudentSession? session;
+    private Group? group;
+    private User? currentUser;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    /// <summary>
+    /// Loads the session and group data with authorization check.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get current user
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUser = await AuthService.GetCurrentUserAsync(authState.User);
+
+            if (currentUser == null)
+            {
+                errorMessage = "Unable to load user information. Please sign in again.";
+                isLoading = false;
+                return;
+            }
+
+            // Load session with group included
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            session = await dbContext.StudentSessions
+                .Include(s => s.Group)
+                .FirstOrDefaultAsync(s => s.Id == SessionId && s.GroupId == GroupId);
+
+            if (session == null)
+            {
+                errorMessage = "Student session not found.";
+                isLoading = false;
+                return;
+            }
+
+            group = session.Group;
+
+            // Authorization check: verify current teacher owns the group
+            if (group.TeacherId != currentUser.Id)
+            {
+                Logger.LogWarning(
+                    "User {UserId} attempted to access chat history for session {SessionId} in group {GroupId} owned by {OwnerId}",
+                    currentUser.Id, SessionId, GroupId, group.TeacherId);
+                errorMessage = "You don't have permission to view this chat history.";
+                isLoading = false;
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading chat history for session {SessionId} in group {GroupId}", SessionId, GroupId);
+            errorMessage = "An error occurred while loading the chat history.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates back to the group dashboard.
+    /// </summary>
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo($"/groups/{GroupId}");
+    }
+}

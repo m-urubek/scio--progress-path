@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/.vscode/settings.json",
+      "description": "Settings file may be overwritten if user has existing workspace settings. Consider documenting in README that these settings should be merged with existing settings."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/deploy.sh",
+      "description": "Hard-coded 30-second sleep after deploy and 20-second sleep for warmup could be excessive or insufficient depending on app size. Consider making these configurable or using a polling-based approach."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/.azure/check-quota.sh",
+      "description": "Script requires 'jq' as an external dependency. While this is documented in the script, consider adding a check at script start for better user experience."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Determining projects to restore...\n  Restored /src/ProgressPath/ProgressPath.csproj (in 8.27 sec).\n  ProgressPath -> /src/ProgressPath/bin/Debug/net8.0/ProgressPath.dll\n\nBuild succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:08.98"
+}

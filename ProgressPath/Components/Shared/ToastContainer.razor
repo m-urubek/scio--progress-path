@@ -1,0 +1,126 @@
+@implements IDisposable
+
+<!-- Toast Container (REQ-DASH-012, REQ-DASH-013) -->
+<div class="toast-container">
+    @foreach (var toast in Toasts.ToList())
+    {
+        <div class="toast-item @GetToastClass(toast)" @key="toast.Id">
+            <div class="flex items-center justify-between gap-3">
+                <!-- Toast Icon -->
+                @if (toast.Type == "alert")
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" style="color: var(--color-primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" style="color: var(--color-tertiary);" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                }
+
+                <!-- Toast Message -->
+                <span class="text-sm flex-1">@toast.Message</span>
+
+                <!-- Dismiss Button -->
+                <button class="toast-dismiss"
+                        @onclick="() => DismissToast(toast)"
+                        title="Dismiss">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// List of toast notifications to display.
+    /// </summary>
+    [Parameter]
+    public List<ToastMessage> Toasts { get; set; } = new();
+
+    /// <summary>
+    /// Callback when a toast is dismissed (manually or auto).
+    /// </summary>
+    [Parameter]
+    public EventCallback<ToastMessage> OnDismiss { get; set; }
+
+    private Dictionary<string, CancellationTokenSource> _autoDismissTokens = new();
+
+    protected override void OnParametersSet()
+    {
+        // Set up auto-dismiss timers for 'resumed' type toasts (REQ-AI-017: 4 seconds)
+        foreach (var toast in Toasts.Where(t => t.Type == "resumed"))
+        {
+            if (!_autoDismissTokens.ContainsKey(toast.Id))
+            {
+                var cts = new CancellationTokenSource();
+                _autoDismissTokens[toast.Id] = cts;
+                _ = AutoDismissAfterDelay(toast, cts.Token);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Auto-dismisses a toast after 4 seconds (REQ-DASH-012).
+    /// </summary>
+    private async Task AutoDismissAfterDelay(ToastMessage toast, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(4000, cancellationToken);
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await DismissToast(toast);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // Expected when toast is manually dismissed
+        }
+    }
+
+    /// <summary>
+    /// Dismisses a toast and notifies the parent.
+    /// </summary>
+    private async Task DismissToast(ToastMessage toast)
+    {
+        // Cancel any pending auto-dismiss
+        if (_autoDismissTokens.TryGetValue(toast.Id, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+            _autoDismissTokens.Remove(toast.Id);
+        }
+
+        await OnDismiss.InvokeAsync(toast);
+    }
+
+    /// <summary>
+    /// Gets the CSS class for the toast based on its type.
+    /// </summary>
+    private string GetToastClass(ToastMessage toast)
+    {
+        return toast.Type switch
+        {
+            "alert" => "toast-alert",
+            "resumed" => "toast-resumed",
+            _ => "toast-default"
+        };
+    }
+
+    public void Dispose()
+    {
+        foreach (var cts in _autoDismissTokens.Values)
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+        _autoDismissTokens.Clear();
+    }
+}

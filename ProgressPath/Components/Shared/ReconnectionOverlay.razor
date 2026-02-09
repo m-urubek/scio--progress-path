@@ -1,0 +1,199 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+
+@*
+    ReconnectionOverlay.razor - Displays a reconnection overlay when the Blazor circuit is disconnected.
+    REQ-RT-002: Handle connection drops gracefully with visible reconnection overlay.
+    REQ-RT-005: Students cannot send messages while disconnected (inherent to Blazor Server).
+*@
+
+@if (currentState != ConnectionState.Connected)
+{
+    <div class="reconnection-overlay">
+        <div class="reconnection-content glow-container p-8 text-center">
+            @switch (currentState)
+            {
+                case ConnectionState.Reconnecting:
+                    <div class="reconnection-spinner-container">
+                        <svg class="reconnection-spinner animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <p class="reconnection-message reconnection-status-reconnecting">
+                        Connection lost. Reconnecting...
+                    </p>
+                    break;
+
+                case ConnectionState.Reconnected:
+                    <div class="reconnection-icon-container">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="reconnection-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <p class="reconnection-message reconnection-status-reconnected">
+                        Reconnected!
+                    </p>
+                    break;
+
+                case ConnectionState.Disconnected:
+                    <div class="reconnection-icon-container reconnection-icon-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="reconnection-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <p class="reconnection-message reconnection-status-disconnected">
+                        Connection lost. Please refresh the page.
+                    </p>
+                    <button class="glow-button mt-4" @onclick="RefreshPage">
+                        Refresh Page
+                    </button>
+                    break;
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Current connection state.
+    /// </summary>
+    private ConnectionState currentState = ConnectionState.Connected;
+
+    /// <summary>
+    /// Reference to this component for JS interop callbacks.
+    /// </summary>
+    private DotNetObjectReference<ReconnectionOverlay>? dotNetRef;
+
+    /// <summary>
+    /// Timer for auto-hiding the reconnected message.
+    /// </summary>
+    private System.Threading.Timer? reconnectedTimer;
+
+    /// <summary>
+    /// Connection state enumeration.
+    /// </summary>
+    private enum ConnectionState
+    {
+        Connected,
+        Reconnecting,
+        Reconnected,
+        Disconnected
+    }
+
+    /// <summary>
+    /// Initialize the JS interop after the first render.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                dotNetRef = DotNetObjectReference.Create(this);
+                await JSRuntime.InvokeVoidAsync("reconnectionInterop.init", dotNetRef);
+            }
+            catch (JSException ex)
+            {
+                // JS interop may fail during prerendering or if script not loaded
+                Console.WriteLine($"[ReconnectionOverlay] JS interop init failed: {ex.Message}");
+            }
+            catch (InvalidOperationException)
+            {
+                // JS interop not available during prerendering
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called by JS when connection is attempting to reconnect.
+    /// </summary>
+    [JSInvokable]
+    public void OnReconnecting()
+    {
+        currentState = ConnectionState.Reconnecting;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Called by JS when connection has been restored.
+    /// </summary>
+    [JSInvokable]
+    public void OnReconnected()
+    {
+        currentState = ConnectionState.Reconnected;
+        InvokeAsync(StateHasChanged);
+
+        // Auto-hide the reconnected message after 2 seconds
+        reconnectedTimer?.Dispose();
+        reconnectedTimer = new System.Threading.Timer(
+            _ => HideReconnectedMessage(),
+            null,
+            TimeSpan.FromSeconds(2),
+            Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// Called by JS when connection has been permanently lost.
+    /// </summary>
+    [JSInvokable]
+    public void OnDisconnected()
+    {
+        currentState = ConnectionState.Disconnected;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Hides the reconnected message and returns to connected state.
+    /// </summary>
+    private void HideReconnectedMessage()
+    {
+        if (currentState == ConnectionState.Reconnected)
+        {
+            currentState = ConnectionState.Connected;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the page when permanently disconnected.
+    /// </summary>
+    private async Task RefreshPage()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("location.reload");
+        }
+        catch
+        {
+            // If JS interop fails, the page is likely in a bad state anyway
+        }
+    }
+
+    /// <summary>
+    /// Cleanup on dispose.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        reconnectedTimer?.Dispose();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("reconnectionInterop.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // JS runtime is no longer available during circuit disconnection - ignore
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component disposed before cleanup could complete - ignore
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering or after disconnect - ignore
+        }
+
+        dotNetRef?.Dispose();
+    }
+}

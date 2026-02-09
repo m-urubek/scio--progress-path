@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatMessageList.razor",
+      "description": "The IsStudentView parameter is defined but not used in the component. The MessageDisplay component always shows the off-topic indicator regardless of this flag."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/chat.js",
+      "description": "File is JavaScript (.js) but project constraint TC-007 specifies TypeScript for client-side scripting. Consider renaming to .ts and adding type annotations."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:08.78"
+}

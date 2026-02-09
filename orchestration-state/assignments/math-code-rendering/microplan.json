@@ -1,0 +1,53 @@
+{
+  "steps": [
+    {
+      "description": "Create the rendering.js file that sets up JavaScript interop for KaTeX (math rendering) and Prism.js (code highlighting). The file should: 1) Include a function `renderMath(element)` that finds and renders all LaTeX expressions (inline $...$ and display $$...$$, plus \\(...\\) and \\[...\\] notations) within the given element using KaTeX. 2) Include a function `highlightCode(element)` that finds all code blocks (```language...``` markers) within the element and highlights them using Prism.js. 3) Include a function `renderRichContent(element)` that calls both renderMath and highlightCode. 4) Export these functions via `window.renderingInterop` object for Blazor JS interop, following the existing pattern used in particles.js and chat.js.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/rendering.js",
+      "action": "create"
+    },
+    {
+      "description": "Add CDN references for KaTeX (CSS and JS) and Prism.js (CSS with a dark theme like 'tomorrow' or 'okaidia', plus the core JS and common language extensions: javascript, typescript, python, csharp, sql, json, markup/html, css). Add these in the <head> section after the existing font imports and before app.css. Also add the rendering.js script reference after the existing chat.js script in the <body> section.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create RichContentRenderer.razor component in the Shared folder. This component should: 1) Accept a `Content` string parameter (the raw message text). 2) Accept an optional `ElementId` string parameter for unique identification. 3) Parse the content and split it into segments: plain text, math expressions (inline $...$ and block $$...$$), and code blocks (```language...```). 4) Render each segment appropriately: plain text as-is in <span> elements, math expressions in <span> elements with 'math-inline' or 'math-block' CSS classes and data-math attribute containing the LaTeX, code blocks in <pre><code class=\"language-{lang}\"> elements. 5) In OnAfterRenderAsync, call the JavaScript renderingInterop.renderRichContent function via IJSRuntime to process the rendered content. 6) Include proper null/empty content handling.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/RichContentRenderer.razor",
+      "action": "create"
+    },
+    {
+      "description": "Modify MessageDisplay.razor to use the new RichContentRenderer component instead of directly rendering the message content in a <p> tag. Replace the existing <p class=\"text-sm leading-relaxed whitespace-pre-wrap break-words\">@Message.Content</p> inside the message-content div with <RichContentRenderer Content=\"@Message.Content\" ElementId=\"@($\"msg-{Message.Id}\")\" />. Remove or simplify the data-contains-math and data-contains-code attributes since RichContentRenderer now handles the detection and rendering internally. Keep the ContainsMath() and ContainsCode() helper methods for potential future use but they may be unused.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add CSS styles for math and code rendering to app.src.css. Add styles for: 1) .math-inline - inline math display styling. 2) .math-block - block/display math styling with center alignment and margin. 3) Code blocks: style pre and code elements with theme-consistent colors (dark surface background rgba(26, 15, 46, 0.9), tertiary border, proper padding and border-radius matching the glow-container style). 4) Inline code: style single backtick code with subtle background and tertiary-tinted styling. 5) Override Prism.js theme colors as needed to match the teal/pink/purple palette: comments in dimmed text, strings in primary (pink), keywords in secondary (purple), functions in tertiary (teal). 6) Add these styles in a new section titled 'Rich Content Rendering Styles (Math & Code)' after the existing Message styles section.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+      "action": "modify"
+    },
+    {
+      "description": "Add the RichContentRenderer to the _Imports.razor if not already automatically imported. Since RichContentRenderer is in ProgressPath.Components.Shared which is already imported as '@using ProgressPath.Components.Shared', this step may only be needed to verify the import is present. No change needed if '@using ProgressPath.Components.Shared' already exists.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "KaTeX vs MathJax: KaTeX is chosen because it's faster and lighter-weight for rendering. The constraint TC-006 allows either option.",
+    "Prism.js theme selection: Use a dark theme (okaidia or tomorrow-night) that complements the existing dark color palette. May need custom CSS overrides to match exactly.",
+    "Language support for Prism: Include common languages students might use: javascript, typescript, python, csharp (C#), sql, json, markup (HTML), css. Additional languages can be added later via CDN.",
+    "Content parsing in RichContentRenderer: The regex parsing must handle edge cases like nested delimiters, escaped characters, and overlapping patterns. Math should be processed before code blocks to avoid conflicts.",
+    "Re-rendering on dynamic updates: The OnAfterRenderAsync hook will be called whenever the component re-renders. Consider using a flag to track if content has changed to avoid redundant JS calls.",
+    "XSS security: Content is rendered as markup, so ensure user content within code blocks is properly escaped. Prism.js handles this automatically, but verify the implementation.",
+    "Mobile responsiveness: Code blocks should have horizontal scrolling on mobile devices to prevent layout breaking with long lines.",
+    "Performance: For chat messages with many math expressions or code blocks, the JS rendering calls could be batched or debounced if performance issues arise.",
+    "The welcome message in StudentChat.razor also displays message content directly - it may need similar treatment, but since it comes from the AI (trusted source) and typically contains formatted text, this can be a follow-up enhancement."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/chat.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/particles.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor"
+  ]
+}

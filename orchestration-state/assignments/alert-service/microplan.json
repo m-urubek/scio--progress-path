@@ -1,0 +1,43 @@
+{
+  "steps": [
+    {
+      "description": "Create the IAlertService interface in the ProgressPath.Services namespace. Define five methods: (1) Task ProcessOffTopicMessageAsync(int sessionId) - handles off-topic message logic with warning counter, (2) Task<HelpAlert?> CreateInactivityAlertAsync(int sessionId) - creates an inactivity alert if none exists unresolved, (3) Task ResolveAlertAsync(int alertId) - marks an alert as resolved and sets ResolvedAt timestamp, (4) Task<IEnumerable<HelpAlert>> GetUnresolvedAlertsAsync(int groupId) - retrieves all unresolved HelpAlerts for a group by querying through StudentSession.GroupId, (5) Task ResetOffTopicCounterAsync(int sessionId) - resets OffTopicWarningCount to 0 when on-topic message is received. Add XML documentation referencing REQ-AI-006 through REQ-AI-020.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IAlertService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the AlertService class implementing IAlertService. Inject ProgressPathDbContext and ILogger<AlertService>. Implement ProcessOffTopicMessageAsync: (1) retrieve StudentSession by sessionId including Group, (2) increment OffTopicWarningCount, (3) if count >= 2 and no unresolved OffTopic alert exists for this session, create new HelpAlert with AlertType.OffTopic, set session.HasActiveAlert=true, session.AlertType=AlertType.OffTopic, (4) save changes. Implement CreateInactivityAlertAsync: (1) retrieve session, (2) check if unresolved Inactivity alert exists, if so return null, (3) create HelpAlert with AlertType.Inactivity, set session.HasActiveAlert=true, session.AlertType=AlertType.Inactivity, (4) save and return the alert. Implement ResolveAlertAsync: (1) find alert by id, (2) set IsResolved=true, ResolvedAt=DateTime.UtcNow, (3) update session.HasActiveAlert to false if no other unresolved alerts remain, session.AlertType to null or remaining alert type, (4) save changes. Implement GetUnresolvedAlertsAsync: query HelpAlerts where IsResolved=false, join through StudentSession to filter by GroupId, include StudentSession navigation. Implement ResetOffTopicCounterAsync: find session, set OffTopicWarningCount=0, save.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/AlertService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create InactivityMonitorService as a BackgroundService (inherits from Microsoft.Extensions.Hosting.BackgroundService). Inject IServiceScopeFactory and ILogger<InactivityMonitorService>. In ExecuteAsync: run a loop with Task.Delay of 60000ms (1 minute). In each iteration: (1) create a new scope, (2) resolve ProgressPathDbContext and IAlertService, (3) query StudentSessions where IsCompleted=false AND (LastActivityAt is null AND JoinedAt < now-10min) OR (LastActivityAt is not null AND LastActivityAt < now-10min), (4) filter out sessions that already have an unresolved Inactivity alert (check via HelpAlerts collection), (5) for each qualifying session, call IAlertService.CreateInactivityAlertAsync. Use try-catch with logging for robustness. Use CancellationToken for graceful shutdown.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/InactivityMonitorService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Register the new services in the DI container. Add: builder.Services.AddScoped<IAlertService, AlertService>() after the ChatService registration. Add: builder.Services.AddHostedService<InactivityMonitorService>() for the background service. Add comment referencing REQ-AI-006 through REQ-AI-020.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "InactivityMonitorService must create a new DI scope for each check cycle because it's a singleton hosted service accessing scoped services (DbContext, AlertService)",
+    "The inactivity check should use UTC times consistently (DateTime.UtcNow) to match the stored JoinedAt and LastActivityAt values",
+    "When resolving an alert, need to check if there are other unresolved alerts for the session before clearing HasActiveAlert flag",
+    "ProcessOffTopicMessageAsync only creates alert on count >= 2 (first off-topic is just a warning per REQ-AI-007/REQ-AI-010)",
+    "CreateInactivityAlertAsync should be idempotent - check for existing unresolved inactivity alert before creating new one",
+    "The background service should handle exceptions gracefully to avoid crashing the entire service loop",
+    "Consider adding an index on StudentSession.LastActivityAt for efficient inactivity queries if not already present",
+    "Use Include(s => s.HelpAlerts) when querying sessions for inactivity to check for existing alerts efficiently"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IStudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/StudentSessionService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs"
+  ]
+}

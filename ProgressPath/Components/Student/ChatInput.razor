@@ -1,0 +1,137 @@
+@* ChatInput.razor - Chat message input component for students.
+   REQ-CHAT-002: Students communicate via text messages with the AI tutor.
+   REQ-GOAL-014: Chat input disabled immediately upon goal completion. *@
+
+<div class="chat-input-container">
+    <div class="inner-card">
+        @* Completion message when goal is achieved *@
+        @if (IsDisabled)
+        {
+            <div class="mb-3 text-center py-2 px-4 rounded-lg"
+                 style="background: rgba(34, 211, 216, 0.1); border: 1px solid rgba(34, 211, 216, 0.2);">
+                <span class="text-sm" style="color: var(--color-tertiary);">
+                    Goal completed! Chat is now closed.
+                </span>
+            </div>
+        }
+
+        <div class="flex items-center gap-3">
+            @* Message input field *@
+            <input type="text"
+                   @bind="message"
+                   @bind:event="oninput"
+                   @onkeydown="HandleKeyDown"
+                   placeholder="@(IsDisabled ? "Chat closed" : "Type your message...")"
+                   maxlength="4000"
+                   disabled="@(IsDisabled || IsLoading)"
+                   class="flex-1" />
+
+            @* Voice dictation button - REQ-CHAT-012 through REQ-CHAT-015 *@
+            <VoiceDictation OnTranscription="HandleTranscription"
+                            IsDisabled="@(IsDisabled || IsLoading)" />
+
+            @* Send button with loading state *@
+            <button class="glow-button flex items-center justify-center"
+                    style="padding: 0.75rem 1rem; min-width: 56px;"
+                    @onclick="HandleSend"
+                    disabled="@(IsDisabled || IsLoading || string.IsNullOrWhiteSpace(message))">
+                @if (IsLoading)
+                {
+                    @* Loading spinner *@
+                    <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                }
+                else
+                {
+                    @* Send arrow icon *@
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Callback invoked when a message is sent.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnSendMessage { get; set; }
+
+    /// <summary>
+    /// Whether the input is disabled (e.g., goal completed).
+    /// </summary>
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
+    /// <summary>
+    /// Whether an AI response is being loaded.
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Current message text.
+    /// </summary>
+    private string message = string.Empty;
+
+    /// <summary>
+    /// Handles voice transcription by appending text to the message input.
+    /// REQ-CHAT-014: Transcribed text appears in input field for review before sending.
+    /// </summary>
+    private void HandleTranscription(string transcript)
+    {
+        if (string.IsNullOrWhiteSpace(transcript))
+        {
+            return;
+        }
+
+        // Append to existing message with space separator if message already has content
+        if (string.IsNullOrEmpty(message))
+        {
+            message = transcript;
+        }
+        else
+        {
+            message += " " + transcript;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Handles the Enter key press for message submission.
+    /// </summary>
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !IsDisabled && !IsLoading && !string.IsNullOrWhiteSpace(message))
+        {
+            await HandleSend();
+        }
+    }
+
+    /// <summary>
+    /// Handles sending the message.
+    /// Validates message, invokes callback, and clears input.
+    /// </summary>
+    private async Task HandleSend()
+    {
+        var trimmedMessage = message?.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmedMessage) || IsDisabled || IsLoading)
+        {
+            return;
+        }
+
+        // Clear input immediately for better UX
+        var messageToSend = trimmedMessage;
+        message = string.Empty;
+
+        // Invoke the callback
+        await OnSendMessage.InvokeAsync(messageToSend);
+    }
+}

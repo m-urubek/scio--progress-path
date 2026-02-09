@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "outDir": "./wwwroot/js",
+    "rootDir": "./wwwroot/ts",
+    "strict": true,
+    "noEmit": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["wwwroot/ts/**/*.ts"],
+  "exclude": ["node_modules"]
+}

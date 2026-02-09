@@ -1,0 +1,55 @@
+{
+  "steps": [
+    {
+      "description": "Create a new JavaScript file for Blazor reconnection interop. This file will register event handlers on Blazor.reconnect (exposed by blazor.web.js) to track connection state changes (Reconnecting, Reconnected, Disconnected, etc.). Export a reconnectionInterop object with functions: init() to register Blazor reconnection event listeners, getCurrentState() to return current connection state, and callbacks for onReconnecting(), onReconnected(), onDisconnected() that can notify the Blazor component via DotNet.invokeMethodAsync.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/reconnection.js",
+      "action": "create"
+    },
+    {
+      "description": "Create the ReconnectionOverlay.razor component in the Shared folder. This component should: (1) Implement @implements IAsyncDisposable and inject IJSRuntime, (2) Track connection state enum (Connected, Reconnecting, Reconnected, Disconnected), (3) Use @rendermode to run client-side, (4) Register JS callbacks in OnAfterRenderAsync using DotNetObjectReference to receive state updates from reconnection.js, (5) Render a full-screen semi-transparent overlay (z-index 100) when disconnected/reconnecting with centered content showing status message, (6) Style with theme colors (glow-container styling, pink/teal accents), include a spinning loader animation when reconnecting, (7) Show appropriate message: 'Connection lost. Reconnecting...' when reconnecting, 'Reconnected!' briefly when reconnected, 'Connection lost. Please refresh the page.' if failed after retries, (8) Add [JSInvokable] methods: OnReconnecting(), OnReconnected(), OnDisconnected() that update state and call StateHasChanged().",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ReconnectionOverlay.razor",
+      "action": "create"
+    },
+    {
+      "description": "Add CSS styles for the reconnection overlay to app.css. Add styles for: (1) .reconnection-overlay - fixed position, inset-0, z-50, background rgba(15,10,26,0.9) with backdrop-filter blur(8px), flex centering, (2) .reconnection-content - glow-container styling with p-8, text-center, max-width 400px, (3) .reconnection-spinner - same spin animation as existing loading states, sized 48x48px, teal color, (4) .reconnection-message - text-lg, margin-top, white color, (5) .reconnection-status-reconnecting, .reconnection-status-disconnected, .reconnection-status-reconnected with appropriate color accents (teal for reconnecting, pink for disconnected, purple for reconnected), (6) Animation for overlay fade-in: @keyframes overlay-fade-in.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Modify App.razor to include the ReconnectionOverlay component and add the script reference. (1) Add <script src=\"js/reconnection.js\"></script> after the existing script tags in the body section, (2) Add <ReconnectionOverlay /> component inside the body, before the Routes component - this ensures the overlay is available application-wide and renders above all content.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Enhance the StudentChat.razor component's reconnection handling. Update the hubConnection.Reconnected event handler to: (1) Add logging for reconnection start, (2) Reload session state using DbContextFactory (already done), (3) Ensure messages list is fully replaced (not merged) to avoid duplicates, (4) Clear any error messages from prior disconnection, (5) Add hubConnection.Reconnecting event handler to set a local reconnecting flag and log the event, (6) Add hubConnection.Closed event handler to log disconnection and set appropriate state.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Enhance the GroupDashboard.razor component's reconnection handling. Add similar reconnection event handlers to the SignalR hub connection: (1) Add hubConnection.Reconnecting handler that logs the reconnection attempt, (2) Add hubConnection.Reconnected handler that re-joins the group channel via InvokeAsync('JoinGroupChannel', group.Id.ToString()), refreshes sessions and alerts from database, rebuilds sessionAlerts map, and calls StateHasChanged, (3) Add hubConnection.Closed handler that logs the disconnection.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "Blazor Server uses a built-in reconnection mechanism via blazor.web.js. The script exposes Blazor.reconnect which can be customized, but the default behavior with .WithAutomaticReconnect() on SignalR connections handles most cases.",
+    "The ReconnectionOverlay should handle the Blazor circuit reconnection (different from SignalR hub reconnection). Blazor.reconnect events are: onReconnecting, onReconnected, onDisconnected.",
+    "Students cannot send messages while disconnected by design (REQ-RT-005) - Blazor Server architecture inherently blocks UI interactions when the circuit is down.",
+    "Chat history restoration (REQ-RT-003) is already partially implemented in StudentChat.razor's hubConnection.Reconnected handler - need to ensure it's complete.",
+    "The overlay should use z-index higher than existing UI (z-50 is used by modals, so use z-[100] or similar) to ensure it appears above all content.",
+    "Need to handle the case where reconnection fails after multiple retries - show a message asking user to refresh the page.",
+    "The ToastContainer already uses position fixed top-right at z-50, so overlay should use higher z-index.",
+    "Multiple browser tabs (REQ-GROUP-020) should each have their own reconnection handling - this is handled automatically by Blazor's per-circuit architecture.",
+    "The reconnection.js must wait for Blazor to be fully loaded before accessing Blazor.reconnect - use afterServerStarted callback or DOMContentLoaded with retry."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ParticleBackground.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ToastContainer.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/chat.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor"
+  ]
+}

@@ -1,0 +1,76 @@
+@using ProgressPath.Models
+@inject IJSRuntime JSRuntime
+
+@* ChatMessageList.razor - Scrollable chat message list component.
+   REQ-CHAT-005: Messages displayed in chronological order with timestamps.
+   REQ-CHAT-007: Progress-contributing messages highlighted (handled by MessageDisplay).
+   REQ-CHAT-008: Off-topic warnings visible to student (handled by MessageDisplay). *@
+
+<div class="chat-messages-container overflow-y-auto flex-1"
+     style="max-height: calc(100vh - 280px);"
+     @ref="messagesContainer">
+    <div class="flex flex-col gap-3 p-4">
+        @if (Messages != null)
+        {
+            @foreach (var message in Messages)
+            {
+                <MessageDisplay @key="message.Id"
+                                Message="message"
+                                ShowProgressIndicator="true"
+                                ShowTimestamp="true" />
+            }
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The list of chat messages to display (in chronological order).
+    /// </summary>
+    [Parameter]
+    public IEnumerable<ChatMessage>? Messages { get; set; }
+
+    /// <summary>
+    /// Whether this is the student view (default: true).
+    /// In student view, off-topic warnings are shown.
+    /// </summary>
+    [Parameter]
+    public bool IsStudentView { get; set; } = true;
+
+    /// <summary>
+    /// Reference to the messages container for scroll operations.
+    /// </summary>
+    private ElementReference messagesContainer;
+
+    /// <summary>
+    /// Track message count to detect new messages.
+    /// </summary>
+    private int lastMessageCount = 0;
+
+    /// <summary>
+    /// Scrolls to the bottom of the message list after new messages are added.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var currentCount = Messages?.Count() ?? 0;
+
+        // Scroll to bottom when new messages are added or on first render with messages
+        if (firstRender && currentCount > 0 || currentCount > lastMessageCount)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("chatInterop.scrollToBottom", messagesContainer);
+            }
+            catch (JSException)
+            {
+                // JS interop may fail during prerendering or disconnect, ignore
+            }
+            catch (InvalidOperationException)
+            {
+                // Prerendering scenario, ignore
+            }
+        }
+
+        lastMessageCount = currentCount;
+    }
+}

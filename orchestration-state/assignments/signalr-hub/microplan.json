@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "description": "Create the Hubs directory at /Users/mu/Coding/scio--progress-path/ProgressPath/Hubs to house SignalR hub classes",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs",
+      "action": "create"
+    },
+    {
+      "description": "Create ProgressHub.cs SignalR hub class with the following:\n- Inherit from Microsoft.AspNetCore.SignalR.Hub\n- Add method JoinGroupChannel(string groupId) that calls Groups.AddToGroupAsync with context connection ID and group channel name (format: 'group_{groupId}')\n- Add method JoinStudentChannel(string sessionId) that calls Groups.AddToGroupAsync with context connection ID and student channel name (format: 'student_{sessionId}')\n- Add method LeaveChannels() that uses Context.ConnectionId to leave all groups - store group memberships in a static ConcurrentDictionary<string, List<string>> to track connection-to-groups mapping, and remove from all tracked groups on disconnect\n- Override OnDisconnectedAsync to clean up group memberships\n- Add logging via ILogger<ProgressHub> injected through constructor\n- Define client method names as constants: ReceiveProgress, ReceiveMessage, ReceiveAlert, AlertResolved, StudentResumedActivity, StudentJoined",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs/ProgressHub.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create IHubNotificationService.cs interface in the Services directory with the following methods:\n- NotifyProgressUpdateAsync(int sessionId, int groupId, int currentProgress, int totalSteps, bool isCompleted) - broadcasts progress update to group channel\n- NotifyNewMessageAsync(int sessionId, int groupId, ChatMessage message) - broadcasts new chat message to group channel and student channel\n- NotifyAlertAsync(int groupId, HelpAlert alert) - broadcasts new alert to group channel\n- NotifyAlertResolvedAsync(int groupId, int alertId) - broadcasts alert resolution to group channel\n- NotifyStudentResumedActivityAsync(int groupId, string nickname) - broadcasts toast notification to group channel\n- NotifyStudentJoinedAsync(int groupId, StudentSession session) - broadcasts new student joined to group channel",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IHubNotificationService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create HubNotificationService.cs implementation with:\n- Constructor injecting IHubContext<ProgressHub> and ILogger<HubNotificationService>\n- Implement NotifyProgressUpdateAsync: send to 'group_{groupId}' channel calling 'ReceiveProgress' with anonymous object containing sessionId, progress, totalSteps, percentage, isCompleted\n- Implement NotifyNewMessageAsync: send to 'group_{groupId}' and 'student_{sessionId}' channels calling 'ReceiveMessage' with message details (id, content, isFromStudent, timestamp, isOffTopic, contributesToProgress)\n- Implement NotifyAlertAsync: send to 'group_{groupId}' calling 'ReceiveAlert' with alert details (id, sessionId, alertType, createdAt, nickname from included StudentSession)\n- Implement NotifyAlertResolvedAsync: send to 'group_{groupId}' calling 'AlertResolved' with alertId\n- Implement NotifyStudentResumedActivityAsync: send to 'group_{groupId}' calling 'StudentResumedActivity' with nickname string\n- Implement NotifyStudentJoinedAsync: send to 'group_{groupId}' calling 'StudentJoined' with session details (id, nickname, currentProgress, isCompleted, joinedAt)",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/HubNotificationService.cs",
+      "action": "create"
+    },
+    {
+      "description": "Modify Program.cs to configure SignalR:\n- Add 'using ProgressPath.Hubs;' at the top with other using statements\n- After AddRazorComponents(), add builder.Services.AddSignalR() to register SignalR services\n- Register HubNotificationService as scoped service: builder.Services.AddScoped<IHubNotificationService, HubNotificationService>()\n- Replace the TODO comment line 'app.MapHub<ProgressHub>(\"/progresshub\");' (line ~98) by uncommenting it and removing the ChatHub reference that is not needed\n- Ensure the hub mapping is placed after UseAuthorization() and before MapRazorComponents()",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The channel naming convention uses 'group_{groupId}' for teacher/group channels and 'student_{sessionId}' for individual student channels. This allows teachers to receive all group updates while students only receive their own session updates.",
+    "HubNotificationService must be registered as scoped (not singleton) because IHubContext<ProgressHub> is thread-safe and can be used from scoped services, while still allowing proper DI with other scoped services like DbContext.",
+    "When sending notifications, use anonymous objects for the payload rather than entity classes to avoid serialization issues with navigation properties and to control exactly what data is sent to clients.",
+    "The ProgressHub should be kept lightweight - it only handles channel subscription/unsubscription. All broadcasting logic goes through HubNotificationService which can be injected into other services (ChatService, AlertService, etc.).",
+    "Connection tracking for LeaveChannels needs a thread-safe collection (ConcurrentDictionary) since SignalR connections can disconnect at any time from multiple threads.",
+    "The hub endpoint path '/progresshub' matches the TODO comment already in Program.cs and should be consistent with what the frontend will use.",
+    "Client method names (ReceiveProgress, ReceiveMessage, etc.) will be used by the Blazor components to register handlers - these names must match exactly between server and client code.",
+    "The ChatMessage entity has navigation properties (StudentSession) that should not be serialized. When sending via SignalR, extract only the needed properties into an anonymous object.",
+    "REQ-RT-001 through REQ-RT-005 require SignalR for all real-time updates. This implementation provides the infrastructure, but the actual integration with ChatService, AlertService, and InactivityMonitorService will need to inject IHubNotificationService and call appropriate methods."
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IAlertService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs"
+  ]
+}

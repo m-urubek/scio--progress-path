@@ -1,0 +1,87 @@
+# Docker Compose configuration for Progress Path local development
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in your values
+#   2. Run: docker compose up --build
+#   3. Access the app at http://localhost:5000
+#
+# Services:
+#   - app: Blazor Server application with hot-reload (port 5000)
+#   - db: SQL Server 2022 Linux (port 1433)
+
+services:
+  # Blazor Server Application (Development mode with hot-reload)
+  app:
+    build:
+      context: .
+      dockerfile: ProgressPath/Dockerfile
+      target: development
+    container_name: progresspath-app
+    ports:
+      - "5001:5000"
+    volumes:
+      # Mount source code for hot-reload (cached for better performance on macOS/Windows)
+      - ./ProgressPath:/src:cached
+      # Preserve container's node_modules (prevents host's macOS binaries from overwriting)
+      - /src/node_modules
+    environment:
+      # Database connection - uses the 'db' service name as the host
+      - ConnectionStrings__DefaultConnection=Server=db;Database=ProgressPath;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True
+      # LLM Configuration
+      - LLM__Provider=${LLM__Provider}
+      - LLM__Model=${LLM__Model}
+      - LLM__ApiKey=${LLM__ApiKey}
+      # Google OAuth Configuration
+      - GoogleAuth__ClientId=${GoogleAuth__ClientId}
+      - GoogleAuth__ClientSecret=${GoogleAuth__ClientSecret}
+      # Dev Authentication (bypass Google OAuth for testing)
+      - DevAuth__Enabled=${DevAuth__Enabled:-false}
+      # Application settings
+      - Application__BaseUrl=${Application__BaseUrl:-http://localhost:5000}
+      # ASP.NET Core environment
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Enable polling file watcher for Docker volume mounts
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      # Auto-restart on rude edits (changes requiring full restart)
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+      # Suppress browser-refresh WebSocket (not reachable from host in Docker)
+      - DOTNET_WATCH_SUPPRESS_BROWSER_REFRESH=1
+    # Use dotnet watch for hot-reload development
+    command: ["dotnet", "watch", "run", "--project", "/src/ProgressPath.csproj", "--urls", "http://+:5000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - progresspath-network
+    restart: unless-stopped
+
+  # SQL Server Database (Azure SQL Edge for Apple Silicon / ARM64 compatibility)
+  db:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: progresspath-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD}
+    ports:
+      - "1433:1433"
+    volumes:
+      - progresspath-sqldata:/var/opt/mssql
+    healthcheck:
+      test: grep -q "Recovery is complete" /var/opt/mssql/log/errorlog || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - progresspath-network
+    restart: unless-stopped
+
+# Named volumes for data persistence
+volumes:
+  progresspath-sqldata:
+    driver: local
+
+# Network for service communication
+networks:
+  progresspath-network:
+    driver: bridge

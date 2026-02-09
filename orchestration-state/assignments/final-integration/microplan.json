@@ -1,0 +1,114 @@
+{
+  "steps": [
+    {
+      "description": "Update MainLayout.razor to add navigation links for authenticated users. Add 'My Groups' link that navigates to /groups for authenticated users. Keep the existing 'Sign In' and 'Sign Out' links. Add active state styling to nav links based on current route using NavigationManager.Uri.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create a NavMenu.razor component in Layout folder. This component will be a reusable navigation menu that shows: 1) For authenticated users: 'My Groups' link, 2) For unauthenticated users: 'Sign In' link. Include user display name and logout link for authenticated users. Use AuthorizeView for conditional rendering. Inject NavigationManager to determine active route state for styling.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/NavMenu.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create a new landing page (Index.razor) that replaces the existing Home.razor. This page should: 1) Show app introduction with gradient text heading 'Progress Path', 2) Display feature list using inner-card styling for each feature (AI-powered learning, real-time monitoring, QR code joining), 3) For anonymous users: show 'Sign In as Teacher' button linking to /login and 'Join with Code' section with input field and button, 4) For authenticated users: redirect to /groups. Use AllowAnonymous attribute.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Index.razor",
+      "action": "create"
+    },
+    {
+      "description": "Delete the old Home.razor page as it will be replaced by Index.razor. The Home.razor currently redirects authenticated users to a placeholder dashboard which is now replaced by the groups list.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Home.razor",
+      "action": "delete"
+    },
+    {
+      "description": "Create Error.razor page for displaying unhandled errors. Include: 1) A glow-container with error icon (pink gradient), 2) 'Oops! Something went wrong' heading with gradient-text-pink styling, 3) Error message display, 4) 'Go Back' button that uses NavigationManager.NavigateTo('/'), 5) Use AllowAnonymous attribute. Page route: /Error",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Error.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create NotFound.razor component for 404 handling. Include: 1) A centered glow-container, 2) '404' large heading with gradient-text styling, 3) 'Page Not Found' subheading, 4) Description text, 5) 'Return Home' glow-button linking to /. This component will be used by Routes.razor.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/NotFound.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update Routes.razor to use the new NotFound.razor component instead of inline markup. Import and render the NotFound component within the NotFound section of the Router.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Routes.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Create ErrorBoundary.razor component that wraps content and catches unhandled exceptions. Include: 1) ErrorContent with error display using theme styling (glow-container, gradient-text-pink), 2) 'An error occurred' message, 3) 'Try Again' button that calls Recover(), 4) ChildContent for normal rendering. This follows Blazor's ErrorBoundary pattern.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ErrorBoundary.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update App.razor to wrap the Routes component with the custom ErrorBoundary component. This ensures unhandled exceptions are caught and displayed with the theme styling.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Update _Imports.razor to add the Layout namespace import: @using ProgressPath.Components.Layout. This makes NavMenu and other layout components available throughout the application.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add CSS styles to app.css for: 1) Page transition animations (@keyframes page-fade-in with opacity and slight translateY), 2) Page content wrapper class with the animation, 3) Error page specific styles, 4) 404 page specific styles (large 404 text), 5) Landing page feature card hover effects, 6) Join code input field styling. Maintain the existing theme palette and glow effects.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "action": "modify"
+    },
+    {
+      "description": "Update Program.cs to: 1) Add app.UseStatusCodePagesWithReExecute('/Error/{0}') for error handling, 2) Ensure proper middleware order: UseExceptionHandler before other middleware, 3) Add DbContextFactory registration for multi-threaded access: builder.Services.AddDbContextFactory<ProgressPathDbContext>(), 4) Apply pending migrations on startup in development mode using scope.ServiceProvider.GetRequiredService<ProgressPathDbContext>().Database.Migrate().",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    },
+    {
+      "description": "Create the InitialCreate migration file using EF Core conventions. Define Up() method that creates tables: Users, Groups, StudentSessions, ChatMessages, HelpAlerts with all columns, indexes, and foreign key constraints as defined in ProgressPathDbContext. Define Down() method that drops all tables in reverse order.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/Migrations/20240101000000_InitialCreate.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create the ModelSnapshot file for EF Core migrations. This file tracks the current state of the model and is required for EF Core to function properly. Define the model structure matching the entities in ProgressPathDbContext.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/Migrations/ProgressPathDbContextModelSnapshot.cs",
+      "action": "create"
+    },
+    {
+      "description": "Create DbInitializer.cs static class for development database seeding. Include methods: 1) Initialize(IServiceProvider serviceProvider) - main entry point, 2) SeedTestTeacher() - creates a test teacher user with GoogleId 'test-teacher-id', 3) SeedTestGroup() - creates a sample confirmed group with WelcomeMessage and GoalDescription, 4) SeedTestStudentSessions() - creates 2-3 sample student sessions with varying progress. Use conditional seeding (only if no data exists).",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/DbInitializer.cs",
+      "action": "create"
+    },
+    {
+      "description": "Update Program.cs to call DbInitializer.Initialize() after migration in development mode. Add conditional check for Development environment before seeding. Wrap in try-catch to handle seeding errors gracefully.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "The landing page should redirect authenticated users to /groups immediately to avoid showing the public landing page to logged-in teachers",
+    "The join code input on the landing page needs client-side validation and should navigate to /join/{code} on submit",
+    "Error boundaries in Blazor Server can cause circuit disconnection - ensure the ErrorBoundary component handles this gracefully with a reconnection option",
+    "The 404 NotFound page should maintain the ParticleBackground and MainLayout styling for consistency",
+    "Navigation active state should compare against NavigationManager.Uri and handle both exact matches and prefix matches for nested routes like /groups/*",
+    "The EF Core migration must match exactly what ProgressPathDbContext.OnModelCreating defines - verify all indexes and constraints",
+    "Database seeding should only run in development environment and should be idempotent (check if data exists before inserting)",
+    "The middleware order in Program.cs is critical: UseExceptionHandler must come before UseAuthentication and UseAuthorization",
+    "DbContextFactory is already registered via AddDbContext in .NET 8+ but verify it's available for the migration/seeding code",
+    "The page transition animations should be subtle (200-300ms) to avoid feeling sluggish while still providing polish",
+    "Ensure all new pages use consistent PageTitle for browser tab naming following the pattern: 'Page Name - Progress Path'"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Routes.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Program.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Data/ProgressPathDbContext.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Login.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupsList.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/User.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/HelpAlert.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs"
+  ]
+}

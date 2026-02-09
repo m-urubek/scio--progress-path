@@ -1,0 +1,74 @@
+# Docker ignore file for Progress Path
+# Excludes files that should not be copied into the Docker build context
+# Note: Build context is the project root, Dockerfile is at ProgressPath/Dockerfile
+
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+
+# IDE and editor files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+*.swo
+*~
+
+# macOS system files
+.DS_Store
+Thumbs.db
+
+# Environment files (contain secrets - NEVER include in builds)
+.env
+.env.*
+!.env.example
+*.env.local
+appsettings.*.local.json
+
+# Deployment artifacts
+deploy-package/
+deploy.zip
+
+# Azure deployment scripts
+.azure/
+
+# SQLite databases
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Node.js dependencies (rebuilt in container)
+node_modules/
+**/node_modules/
+package-lock.json
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files (avoid recursive context issues)
+docker-compose*.yml
+
+# Test coverage and reports
+coverage/
+TestResults/
+*.trx
+
+# State files (planner artifacts)
+state/
+
+# Documentation (not needed in container)
+*.md
+LICENSE
+
+# Temporary files
+tmp/
+temp/

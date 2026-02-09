@@ -1,0 +1,50 @@
+{
+  "steps": [
+    {
+      "description": "Add tsparticles package to the project's package.json. Add 'tsparticles' (version ^3.5.0 or later) to the 'dependencies' section. The project already has a package.json for Tailwind, so add the new dependency there.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/package.json",
+      "action": "modify"
+    },
+    {
+      "description": "Create the particles.js file that initializes tsparticles with the TherapistTemplate configuration. The file should:\n\n1. Define a `particlesConfig` object with:\n   - fullScreen: { enable: true, zIndex: -1 }\n   - background: { color: { value: 'transparent' } }\n   - fpsLimit: 60\n   - interactivity.events: onHover (grab mode), onClick (push mode)\n   - interactivity.modes: grab with distance 140 and links.opacity 0.5, links.color '#22d3d8'; push with quantity 2\n   - particles.color.value: ['#ff6b9d', '#c084fc', '#22d3d8', '#a78bfa', '#f0abfc']\n   - particles.links: color '#c084fc', distance 150, enable true, opacity 0.15, width 1, triangles.enable true with opacity 0.02\n   - particles.move: enable true, speed 0.2, direction 'none', random true, straight false, outModes.default 'bounce', attract.enable true with rotate.x 600 and rotate.y 1200\n   - particles.number: density.enable true (width 1920, height 1080), value 80\n   - particles.opacity: value { min: 0.2, max: 0.6 } with animation (speed 0.1, sync false, startValue 'random')\n   - particles.shape.type: 'circle'\n   - particles.size: value { min: 1, max: 4 } with animation (speed 0.33, sync false, startValue 'random')\n   - particles.twinkle: enable true, frequency 0.01, opacity 1, color.value ['#ff6b9d', '#22d3d8', '#c084fc']\n   - detectRetina: true\n\n2. Define an async function `initParticles(containerId)` that:\n   - Uses `tsParticles.load({ id: containerId, options: particlesConfig })`\n   - Returns the container instance for later disposal\n\n3. Define a function `destroyParticles(containerId)` that:\n   - Calls `tsParticles.destroy(containerId)` to clean up\n\n4. Export both functions to the global window object for Blazor interop:\n   - window.particlesInterop = { init: initParticles, destroy: destroyParticles }",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/particles.js",
+      "action": "create"
+    },
+    {
+      "description": "Create the Shared components directory structure by creating the ParticleBackground.razor component. The component should:\n\n1. Inject IJSRuntime\n2. Implement IAsyncDisposable interface\n3. Have a private string field for containerId (e.g., 'tsparticles-bg')\n4. Render a div with:\n   - id=\"@containerId\"\n   - class for positioning (fixed, inset-0, z-[-1], overflow-hidden, pointer-events-none)\n5. Override OnAfterRenderAsync:\n   - On first render only (firstRender == true)\n   - Call await JSRuntime.InvokeVoidAsync(\"particlesInterop.init\", containerId)\n6. Implement DisposeAsync:\n   - Call await JSRuntime.InvokeVoidAsync(\"particlesInterop.destroy\", containerId)\n   - Wrap in try-catch to handle cases where JS runtime is no longer available",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/ParticleBackground.razor",
+      "action": "create"
+    },
+    {
+      "description": "Update App.razor to include the tsparticles library script. Add two script tags before the closing </body> tag and after the blazor.web.js script:\n\n1. <script src=\"https://cdn.jsdelivr.net/npm/tsparticles@3.5.0/tsparticles.bundle.min.js\"></script>\n2. <script src=\"js/particles.js\"></script>\n\nThis loads tsparticles from CDN and then our custom initialization script.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Update MainLayout.razor to include the ParticleBackground component. Modify the layout to:\n\n1. Remove the TODO comments about particle background\n2. Add <ParticleBackground /> component inside <main> at the very beginning, before @Body\n3. The structure should be:\n   <main>\n       <ParticleBackground />\n       @Body\n   </main>",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Update _Imports.razor to add the Shared namespace so components can use ParticleBackground without full qualification. Add:\n\n@using ProgressPath.Components.Shared",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "tsparticles CDN approach is used instead of npm install to avoid complex bundling setup since the project uses Tailwind CLI only for CSS processing, not a full JavaScript bundler like Webpack or Vite",
+    "The particle container uses pointer-events-none CSS to ensure particles don't interfere with user interactions on the page content",
+    "The z-index is set to -1 via fullScreen configuration in tsparticles and reinforced with z-[-1] Tailwind class on the container div",
+    "DisposeAsync must be wrapped in try-catch because the JS runtime may not be available during circuit disconnection in Blazor Server",
+    "The particle configuration is dark-mode only (matching REQ-THEME-003) - no light mode variations needed unlike the TherapistTemplate reference",
+    "Using tsparticles.bundle.min.js from CDN includes all necessary plugins (slim bundle features) without needing separate plugin loads",
+    "The firstRender check in OnAfterRenderAsync is crucial to prevent multiple initializations during Blazor's rendering lifecycle",
+    "Container ID should be unique to avoid conflicts if multiple particle instances are ever needed"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Layout/MainLayout.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/package.json"
+  ]
+}

@@ -1,0 +1,263 @@
+@page "/join/{JoinCode}"
+@attribute [AllowAnonymous]
+@inject IGroupService GroupService
+@inject IStudentSessionService StudentSessionService
+@inject IHubNotificationService HubNotificationService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+@* JoinGroup.razor
+   Student join page for entering a group via QR code.
+   REQ-GROUP-014: Anyone can join by scanning QR code (no auth required).
+   REQ-GROUP-015: User enters a nickname.
+   REQ-GROUP-016: Nicknames must be unique within a group.
+   REQ-GROUP-017: Device-binding via localStorage.
+   REQ-GROUP-018: Restore previous session if device rejoins.
+   REQ-GROUP-010: Only confirmed groups are joinable.
+*@
+
+<PageTitle>Join Group - Progress Path</PageTitle>
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="glow-container p-8 w-full" style="max-width: 28rem;">
+        @switch (state)
+        {
+            case PageState.Loading:
+                <div class="text-center">
+                    <div class="flex justify-center mb-4">
+                        <svg class="animate-spin h-12 w-12 text-tertiary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-lg opacity-75">Loading...</p>
+                </div>
+                break;
+
+            case PageState.NotFound:
+                <div class="text-center">
+                    <div class="join-page-icon join-page-icon-error mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </div>
+                    <h1 class="text-3xl font-bold gradient-text-pink mb-4">
+                        Group Not Found
+                    </h1>
+                    <p class="text-lg opacity-75">
+                        The group you're looking for doesn't exist or the join code is invalid.
+                    </p>
+                </div>
+                break;
+
+            case PageState.NotConfirmed:
+                <div class="text-center">
+                    <div class="join-page-icon join-page-icon-wait mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h1 class="text-3xl font-bold gradient-text mb-4">
+                        Group Not Ready
+                    </h1>
+                    <p class="text-lg opacity-75">
+                        This group is not yet available for joining. Please wait for your teacher to confirm the group settings.
+                    </p>
+                </div>
+                break;
+
+            case PageState.HasExistingSession:
+                <div class="text-center">
+                    <div class="join-page-icon join-page-icon-success mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h1 class="text-3xl font-bold gradient-text mb-4">
+                        Welcome Back!
+                    </h1>
+                    <p class="text-lg opacity-75 mb-2">
+                        You already have a session in this group.
+                    </p>
+                    <p class="text-xl font-semibold mb-6" style="color: var(--color-secondary);">
+                        @existingSession?.Nickname
+                    </p>
+                    <button class="glow-button w-full" @onclick="NavigateToChatFromExisting">
+                        Continue to Chat
+                    </button>
+                </div>
+                break;
+
+            case PageState.ShowJoinForm:
+                <div class="text-center mb-6">
+                    <h1 class="text-3xl font-bold gradient-text mb-2">
+                        Join Group
+                    </h1>
+                    <p class="text-xl opacity-90" style="color: var(--color-secondary);">
+                        @group?.Name
+                    </p>
+                </div>
+                <JoinForm Nickname="@nickname"
+                          NicknameChanged="@((v) => nickname = v)"
+                          OnSubmit="HandleJoin"
+                          IsLoading="@isJoining"
+                          ErrorMessage="@errorMessage" />
+                break;
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The join code from the URL route.
+    /// </summary>
+    [Parameter]
+    public string JoinCode { get; set; } = string.Empty;
+
+    // Component state
+    private Group? group;
+    private StudentSession? existingSession;
+    private string? deviceId;
+    private string nickname = string.Empty;
+    private bool isJoining = false;
+    private string? errorMessage;
+    private PageState state = PageState.Loading;
+
+    /// <summary>
+    /// Page states for the UI state machine.
+    /// </summary>
+    private enum PageState
+    {
+        Loading,
+        NotFound,
+        NotConfirmed,
+        HasExistingSession,
+        ShowJoinForm
+    }
+
+    /// <summary>
+    /// Initialize the page after first render.
+    /// JS interop must happen here, not in OnInitializedAsync, because
+    /// JSRuntime is not available during prerendering in Blazor Server.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Get device ID from localStorage via JS interop
+                deviceId = await JSRuntime.InvokeAsync<string>("deviceInterop.getDeviceId");
+
+                // Try to find the group by join code
+                group = await GroupService.GetGroupByJoinCodeAsync(JoinCode);
+
+                if (group == null)
+                {
+                    state = PageState.NotFound;
+                }
+                else if (!group.IsConfirmed)
+                {
+                    state = PageState.NotConfirmed;
+                }
+                else
+                {
+                    // Check for existing session (REQ-GROUP-018)
+                    existingSession = await StudentSessionService.GetExistingSessionAsync(JoinCode, deviceId);
+
+                    if (existingSession != null)
+                    {
+                        state = PageState.HasExistingSession;
+                    }
+                    else
+                    {
+                        state = PageState.ShowJoinForm;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error and show appropriate state
+                Console.Error.WriteLine($"Error initializing join page: {ex.Message}");
+                state = PageState.NotFound;
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Handles the join form submission.
+    /// Creates a new student session and redirects to chat.
+    /// </summary>
+    private async Task HandleJoin()
+    {
+        if (string.IsNullOrWhiteSpace(nickname) || string.IsNullOrEmpty(deviceId))
+        {
+            return;
+        }
+
+        isJoining = true;
+        errorMessage = null;
+
+        try
+        {
+            var createdSession = await StudentSessionService.JoinGroupAsync(
+                JoinCode,
+                nickname.Trim(),
+                deviceId
+            );
+
+            // Notify the teacher dashboard if this is a newly created session
+            // (JoinGroupAsync returns existing sessions for device-bound restoration)
+            var isNewSession = createdSession.JoinedAt > DateTime.UtcNow.AddSeconds(-10);
+            if (isNewSession && group != null)
+            {
+                await HubNotificationService.NotifyStudentJoinedAsync(group.Id, createdSession);
+            }
+
+            NavigateToChat(createdSession.Id);
+        }
+        catch (ArgumentException ex)
+        {
+            // Nickname already taken (REQ-GROUP-016)
+            errorMessage = ex.Message;
+        }
+        catch (KeyNotFoundException)
+        {
+            errorMessage = "Group not found.";
+        }
+        catch (InvalidOperationException)
+        {
+            // Group not confirmed
+            errorMessage = "Group is not available.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            isJoining = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the chat page for the given session.
+    /// </summary>
+    private void NavigateToChat(int sessionId)
+    {
+        NavigationManager.NavigateTo($"/chat/{sessionId}");
+    }
+
+    /// <summary>
+    /// Navigates to the chat page for the existing session.
+    /// </summary>
+    private void NavigateToChatFromExisting()
+    {
+        if (existingSession != null)
+        {
+            NavigateToChat(existingSession.Id);
+        }
+    }
+}

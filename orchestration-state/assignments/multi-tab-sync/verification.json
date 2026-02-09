@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/tabsync.js",
+      "description": "The BroadcastChannel fallback (tabsync.js) is created but not actively used by the Blazor components. The StudentChat.razor relies solely on SignalR for synchronization. Consider integrating BroadcastChannel as a true fallback when SignalR connection fails."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "description": "The isSending flag prevents duplicate submissions from the same tab, but there's no server-side idempotency check. If a user rapidly clicks send from multiple tabs before the first request completes, duplicate messages could be created. Consider adding a client-side debounce or server-side idempotency key."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:09.70"
+}

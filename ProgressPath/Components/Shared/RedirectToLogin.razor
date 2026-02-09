@@ -1,0 +1,16 @@
+@inject NavigationManager NavigationManager
+
+@*
+    RedirectToLogin Component
+    Handles redirecting unauthenticated users to the login page (REQ-AUTH-007).
+    Used by AuthorizeRouteView's NotAuthorized template.
+*@
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Use forceLoad to ensure a full page navigation
+        // This is necessary to properly trigger the authentication flow
+        NavigationManager.NavigateTo("/login", forceLoad: true);
+    }
+}

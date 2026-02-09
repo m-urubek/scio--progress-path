@@ -1,0 +1,101 @@
+@* JoinForm.razor
+   Nickname input form component for students joining a group.
+   REQ-GROUP-015: Upon joining, user enters a nickname.
+   REQ-GROUP-016: Nicknames must be unique within a group.
+*@
+
+<div class="inner-card">
+    <div class="mb-4">
+        <label class="block text-sm font-medium opacity-75 mb-2">
+            Your Nickname
+        </label>
+        <input type="text"
+               value="@Nickname"
+               @oninput="HandleNicknameInput"
+               placeholder="e.g., John Smith"
+               maxlength="50"
+               disabled="@(IsLoading || IsDisabled)"
+               class="w-full" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="mb-4 p-3 rounded-lg" style="border: 1px solid rgba(255, 107, 157, 0.5); background: rgba(255, 107, 157, 0.1);">
+            <p class="text-sm" style="color: var(--color-primary);">@ErrorMessage</p>
+        </div>
+    }
+
+    <button class="glow-button w-full"
+            @onclick="HandleSubmitClick"
+            disabled="@(IsLoading || IsDisabled || string.IsNullOrWhiteSpace(Nickname))">
+        @if (IsLoading)
+        {
+            <span class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Joining...
+            </span>
+        }
+        else
+        {
+            <span>Join Group</span>
+        }
+    </button>
+</div>
+
+@code {
+    /// <summary>
+    /// Current nickname value (two-way bound via NicknameChanged callback).
+    /// </summary>
+    [Parameter]
+    public string Nickname { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Callback when nickname changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> NicknameChanged { get; set; }
+
+    /// <summary>
+    /// Callback when join button is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnSubmit { get; set; }
+
+    /// <summary>
+    /// Whether a join operation is in progress.
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Error message to display (e.g., nickname already taken).
+    /// </summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Whether the form is disabled (e.g., group not available).
+    /// </summary>
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
+    /// <summary>
+    /// Handles nickname input changes.
+    /// </summary>
+    private async Task HandleNicknameInput(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? string.Empty;
+        await NicknameChanged.InvokeAsync(value);
+    }
+
+    /// <summary>
+    /// Handles join button click.
+    /// </summary>
+    private async Task HandleSubmitClick()
+    {
+        await OnSubmit.InvokeAsync();
+    }
+}

@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "issues": [
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.css",
+      "description": "The fallback app.css is missing several Tailwind utility classes used in components (cursor-pointer, flex-1, mb-2, mb-6, h-2, rounded-full, text-left, py-3). These will only work after running npm run build:css to generate the full Tailwind CSS output."
+    },
+    {
+      "severity": "warning",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/GroupCard.razor",
+      "description": "GroupCard component is implemented but not used in GroupsList.razor. The assignment asks for GroupCard but the page uses inline table rendering instead. Consider using GroupCard for consistency or removing it if not needed."
+    }
+  ],
+  "buildPassed": true,
+  "buildOutput": "Build succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:07.80"
+}

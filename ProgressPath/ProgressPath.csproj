@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.11" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="LLMTornado" Version="3.8.46" />
+  </ItemGroup>
+
+  <!-- Exclude node_modules from project -->
+  <ItemGroup>
+    <None Remove="node_modules\**" />
+    <Content Remove="node_modules\**" />
+  </ItemGroup>
+
+  <!-- Build TypeScript and Tailwind CSS before main build (only if node_modules exists) -->
+  <Target Name="BuildTypeScript" BeforeTargets="Build;BuildTailwind"
+    Condition="Exists('node_modules')">
+    <Message Text="Compiling TypeScript..." Importance="high" />
+    <Exec Command="npm run build:ts" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
+  <Target Name="BuildTailwind" BeforeTargets="Build" Condition="Exists('node_modules')">
+    <Message Text="Building Tailwind CSS..." Importance="high" />
+    <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
+</Project>

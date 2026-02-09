@@ -1,0 +1,149 @@
+@using ProgressPath.Models
+@implements IDisposable
+
+<!-- Alert Side Panel (Left, non-closable) -->
+<div class="alert-panel">
+    <div class="alert-panel-header">
+        <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" style="color: var(--color-primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 class="font-semibold gradient-text-pink">Alerts</h3>
+        </div>
+        @if (Alerts.Any())
+        {
+            <span class="alert-count">@Alerts.Count()</span>
+        }
+    </div>
+
+    <div class="alert-panel-content">
+        @if (!Alerts.Any())
+        {
+            <div class="alert-empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-sm opacity-50">No active alerts</p>
+            </div>
+        }
+        else
+        {
+            <div class="alert-list">
+                @foreach (var alertInfo in Alerts.OrderByDescending(a => a.Alert.CreatedAt))
+                {
+                    <div class="alert-item @GetAlertTypeClass(alertInfo.Alert.AlertType)">
+                        <div class="alert-item-header">
+                            <!-- Alert Icon -->
+                            @if (alertInfo.Alert.AlertType == AlertType.Inactivity)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 alert-icon-inactivity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 alert-icon-offtopic" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            }
+                            <span class="alert-nickname truncate">@alertInfo.Nickname</span>
+                        </div>
+                        
+                        <div class="alert-item-details">
+                            <span class="alert-type-label">
+                                @(alertInfo.Alert.AlertType == AlertType.Inactivity ? "Inactive" : "Off-topic")
+                            </span>
+                            <span class="alert-time">
+                                @GetTimeSince(alertInfo.Alert.CreatedAt)
+                            </span>
+                        </div>
+
+                        <button class="alert-resolve-button"
+                                @onclick="() => HandleResolve(alertInfo.Alert.Id)"
+                                @onclick:stopPropagation="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Resolve</span>
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Record to hold alert with associated nickname.
+    /// </summary>
+    public record AlertWithNickname(HelpAlert Alert, string Nickname);
+
+    /// <summary>
+    /// List of alerts to display with their associated nicknames.
+    /// </summary>
+    [Parameter]
+    public IEnumerable<AlertWithNickname> Alerts { get; set; } = Enumerable.Empty<AlertWithNickname>();
+
+    /// <summary>
+    /// Callback when resolve button is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback<int> OnResolve { get; set; }
+
+    /// <summary>
+    /// Timer to periodically update relative times.
+    /// </summary>
+    private Timer? _refreshTimer;
+
+    /// <summary>
+    /// Initialize timer to refresh relative times every 30 seconds.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        // Update times every 30 seconds
+        _refreshTimer = new Timer(_ =>
+        {
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>
+    /// Dispose the timer when component is disposed.
+    /// </summary>
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+
+    /// <summary>
+    /// Gets the CSS class based on alert type.
+    /// </summary>
+    private string GetAlertTypeClass(AlertType alertType)
+    {
+        return alertType == AlertType.Inactivity ? "alert-item-inactivity" : "alert-item-offtopic";
+    }
+
+    /// <summary>
+    /// Gets a human-readable time since the alert was created.
+    /// </summary>
+    private string GetTimeSince(DateTime createdAt)
+    {
+        var elapsed = DateTime.UtcNow - createdAt;
+        if (elapsed.TotalMinutes < 1)
+            return "Just now";
+        if (elapsed.TotalMinutes < 60)
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24)
+            return $"{(int)elapsed.TotalHours}h ago";
+        return $"{(int)elapsed.TotalDays}d ago";
+    }
+
+    /// <summary>
+    /// Handles the resolve button click.
+    /// </summary>
+    private async Task HandleResolve(int alertId)
+    {
+        await OnResolve.InvokeAsync(alertId);
+    }
+}

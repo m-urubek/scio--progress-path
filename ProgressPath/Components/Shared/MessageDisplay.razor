@@ -1,0 +1,173 @@
+@using ProgressPath.Models
+
+@* MessageDisplay.razor - Reusable component for rendering a single chat message
+   Handles student vs AI message styling, progress contribution highlighting,
+   off-topic indicators, system messages, timestamps, and placeholders for math/code rendering.
+   REQ-CHAT-005 through REQ-CHAT-008, REQ-CHAT-010, REQ-CHAT-011 *@
+
+<div class="message-bubble @GetMessageClasses()">
+    @* Message Header: Sender indicator and timestamp *@
+    <div class="flex justify-between items-start mb-2 gap-2">
+        @* Sender Label *@
+        <span class="text-xs font-medium @GetSenderLabelClass()">
+            @GetSenderLabel()
+        </span>
+
+        @* Timestamp and Indicators *@
+        <div class="flex items-center gap-2">
+            @* Progress Contribution Indicator (REQ-CHAT-007) *@
+            @if (ShowProgressIndicator && Message.SignificantProgress && Message.IsFromStudent)
+            {
+                <span class="message-progress-badge">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Progress
+                </span>
+            }
+
+            @* Off-Topic Warning Indicator (REQ-CHAT-008) - Only visible to teacher *@
+            @if (Message.IsOffTopic && Message.IsFromStudent)
+            {
+                <span class="message-offtopic-indicator" title="Off-topic message">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </span>
+            }
+
+            @* Timestamp (REQ-CHAT-005) *@
+            @if (ShowTimestamp)
+            {
+                <span class="text-xs opacity-50">
+                    @Message.Timestamp.ToString("MMM dd, HH:mm")
+                </span>
+            }
+        </div>
+    </div>
+
+    @* Message Content - renders math and code with RichContentRenderer *@
+    <div class="message-content" data-message-id="@Message.Id">
+        @* Render content with math/code blocks (REQ-CHAT-010, REQ-CHAT-011) *@
+        <div class="text-sm leading-relaxed">
+            <RichContentRenderer Content="@Message.Content" ElementId="@($"msg-{Message.Id}")" />
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The chat message to display (required).
+    /// </summary>
+    [Parameter, EditorRequired]
+    public ChatMessage Message { get; set; } = null!;
+
+    /// <summary>
+    /// Whether to show the progress contribution indicator.
+    /// Default: true
+    /// </summary>
+    [Parameter]
+    public bool ShowProgressIndicator { get; set; } = true;
+
+    /// <summary>
+    /// Whether to show the timestamp.
+    /// Default: true
+    /// </summary>
+    [Parameter]
+    public bool ShowTimestamp { get; set; } = true;
+
+    /// <summary>
+    /// Builds the CSS class list based on message properties.
+    /// </summary>
+    private string GetMessageClasses()
+    {
+        var classes = new List<string>();
+
+        // Add student, AI, or system class
+        if (Message.IsFromStudent)
+        {
+            classes.Add("message-student");
+        }
+        else if (Message.IsSystemMessage)
+        {
+            classes.Add("message-system");
+        }
+        else
+        {
+            classes.Add("message-ai");
+        }
+
+        // Add progress contribution highlight (green border) for student messages
+        if (Message.SignificantProgress && Message.IsFromStudent)
+        {
+            classes.Add("message-progress");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    /// <summary>
+    /// Gets the appropriate sender label based on message type.
+    /// </summary>
+    private string GetSenderLabel()
+    {
+        if (Message.IsFromStudent)
+        {
+            return "Student";
+        }
+        
+        if (Message.IsSystemMessage)
+        {
+            return "System";
+        }
+        
+        return "AI Tutor";
+    }
+
+    /// <summary>
+    /// Gets the CSS class for the sender label.
+    /// </summary>
+    private string GetSenderLabelClass()
+    {
+        if (Message.IsFromStudent)
+        {
+            return "text-secondary";
+        }
+        
+        if (Message.IsSystemMessage)
+        {
+            return "text-amber-400";
+        }
+        
+        return "text-tertiary";
+    }
+
+    /// <summary>
+    /// Checks if the message content might contain LaTeX math expressions.
+    /// Used for data attribute to enable future JS interop for KaTeX.
+    /// </summary>
+    private bool ContainsMath()
+    {
+        if (string.IsNullOrEmpty(Message.Content)) return false;
+
+        // Check for common LaTeX patterns
+        return Message.Content.Contains("$") ||
+               Message.Content.Contains("\\(") ||
+               Message.Content.Contains("\\[") ||
+               Message.Content.Contains("\\frac") ||
+               Message.Content.Contains("\\sqrt");
+    }
+
+    /// <summary>
+    /// Checks if the message content might contain code snippets.
+    /// Used for data attribute to enable future JS interop for highlight.js.
+    /// </summary>
+    private bool ContainsCode()
+    {
+        if (string.IsNullOrEmpty(Message.Content)) return false;
+
+        // Check for code block markers
+        return Message.Content.Contains("```") ||
+               Message.Content.Contains("`");
+    }
+}

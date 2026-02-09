@@ -1,0 +1,49 @@
+@inject NavigationManager NavigationManager
+
+<PageTitle>Page Not Found - Progress Path</PageTitle>
+
+@*
+    NotFound Component
+    Displayed when a route cannot be matched by the router.
+    Shows a styled 404 page with navigation back to home.
+    Used by Routes.razor in the NotFound section.
+*@
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="glow-container p-8 text-center not-found-container" style="max-width: 32rem;">
+        <!-- Large 404 Text -->
+        <div class="not-found-code mb-4">
+            <span class="text-8xl font-bold font-heading gradient-text">404</span>
+        </div>
+
+        <!-- Title -->
+        <h1 class="text-3xl font-bold mb-4 gradient-text-pink">
+            Page Not Found
+        </h1>
+
+        <!-- Description -->
+        <p class="text-lg opacity-75 mb-8">
+            The page you're looking for doesn't exist or has been moved.
+            Let's get you back on track.
+        </p>
+
+        <!-- Return Home Button -->
+        <button class="glow-button inline-flex items-center gap-2 px-6 py-3" @onclick="GoHome">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Return Home
+        </button>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Navigates to the home page.
+    /// </summary>
+    private void GoHome()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

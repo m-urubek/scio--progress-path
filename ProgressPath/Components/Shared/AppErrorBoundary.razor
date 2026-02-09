@@ -1,0 +1,84 @@
+@inherits ErrorBoundary
+@inject ILogger<AppErrorBoundary> Logger
+
+@*
+    AppErrorBoundary Component
+    Extends Blazor's built-in ErrorBoundary to catch unhandled exceptions
+    and display a themed error message with a recovery option.
+
+    Note: In Blazor Server, unhandled exceptions can cause circuit disconnection.
+    This component provides graceful error handling with the application's theme styling.
+*@
+
+@if (CurrentException is not null)
+{
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="glow-container p-8 text-center error-boundary-container" style="max-width: 32rem; border-color: rgba(255, 107, 157, 0.5);">
+            <!-- Error Icon -->
+            <div class="error-page-icon mb-6 mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>
+                    <path d="M12 9v4"/>
+                    <path d="M12 17h.01"/>
+                </svg>
+            </div>
+
+            <!-- Error Title -->
+            <h1 class="text-3xl font-bold mb-4 gradient-text-pink">
+                An Error Occurred
+            </h1>
+
+            <!-- Error Message -->
+            <p class="text-lg opacity-75 mb-6">
+                Something went wrong while displaying this page.
+                You can try again or return to the home page.
+            </p>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-3 items-center">
+                <button class="glow-button inline-flex items-center gap-2 px-6 py-3" @onclick="TryRecover">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                        <path d="M8 16H3v5"/>
+                    </svg>
+                    Try Again
+                </button>
+                <a href="/" class="nav-link text-sm">
+                    Return to Home
+                </a>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    /// <summary>
+    /// Attempts to recover from the error by resetting the ErrorBoundary state.
+    /// </summary>
+    private void TryRecover()
+    {
+        // Log the error before recovering
+        if (CurrentException is not null)
+        {
+            Logger.LogError(CurrentException, "ErrorBoundary recovered from exception");
+        }
+
+        Recover();
+    }
+
+    /// <summary>
+    /// Called when an exception is received by the ErrorBoundary.
+    /// </summary>
+    /// <param name="exception">The exception that occurred.</param>
+    protected override Task OnErrorAsync(Exception exception)
+    {
+        Logger.LogError(exception, "Unhandled exception caught by ErrorBoundary");
+        return base.OnErrorAsync(exception);
+    }
+}

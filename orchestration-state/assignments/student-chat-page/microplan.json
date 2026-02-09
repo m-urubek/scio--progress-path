@@ -1,0 +1,93 @@
+{
+  "steps": [
+    {
+      "description": "Create the ProgressIndicator.razor component. This component displays progress for both binary and percentage goals. For binary goals, render an empty circle (incomplete) or a filled checkmark circle (complete). For percentage goals, render a horizontal progress bar with the calculated percentage displayed next to it. Include parameters: GoalType (enum), CurrentProgress (int), TotalSteps (int?), IsCompleted (bool). Add a private method CalculatePercentage() that computes (CurrentProgress * 100.0 / TotalSteps) rounded to int. Use the existing CSS classes: for the progress bar, use a container div with 'w-24 h-2 rounded-full' and inner div with gradient background matching StudentRow.razor patterns. The progress bar should animate with 'transition-all duration-300'. For binary goals, use similar checkmark styling as StudentRow.razor.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ProgressIndicator.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create the ChatInput.razor component. Include parameters: OnSendMessage (EventCallback<string>), IsDisabled (bool), IsLoading (bool). Add a private field 'message' (string) bound to a text input. Create a container div with the inner-card class. Add a flex container with an input field (placeholder 'Type your message...', max-length 4000) and a send button. The button should use glow-button class and display a send icon (arrow right SVG). When IsLoading is true, show a spinner animation in the button instead. Disable both input and button when IsDisabled is true (for completed goals). Add a HandleSend method that validates the message is not empty, invokes OnSendMessage callback with the trimmed message, and clears the input field. Support Enter key submission via @onkeydown handler. When IsDisabled is true, show a subtle message below the input: 'Goal completed! Chat is now closed.'",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatInput.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create the ChatMessageList.razor component. Include parameters: Messages (IEnumerable<ChatMessage>), IsStudentView (bool, default true). Render messages in a scrollable container using the 'chat-messages-container' CSS class with 'overflow-y-auto' and a fixed max-height (e.g., 'max-h-[calc(100vh-300px)]'). Use a foreach loop to render each message. For each message, use the existing MessageDisplay component, passing ShowProgressIndicator=true and ShowTimestamp=true. When IsStudentView is true and message.IsOffTopic is true, show the off-topic warning indicator (already handled by MessageDisplay). Messages should be displayed in chronological order (oldest first). Add an ElementReference for the container and a JavaScript interop call to scroll to bottom on new messages. Include an OnAfterRenderAsync method that scrolls to the bottom when messages change.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Student/ChatMessageList.razor",
+      "action": "create"
+    },
+    {
+      "description": "Create the StudentChat.razor page with route '/chat/{SessionId:int}'. Add [AllowAnonymous] attribute. Inject dependencies: IChatService, IStudentSessionService, IHubNotificationService, NavigationManager, IJSRuntime, ILogger<StudentChat>, IConfiguration, IDbContextFactory<ProgressPathDbContext>. Implement IAsyncDisposable for SignalR cleanup. Define state fields: session (StudentSession?), group (Group?), messages (List<ChatMessage>), isLoading (bool), isSending (bool), errorMessage (string?), hubConnection (HubConnection?), disposalTokenSource (CancellationTokenSource?). Create PageState enum: Loading, NotFound, Active. Create OnInitializedAsync to load session with Group using DbContextFactory, load chat history via ChatService.GetChatHistoryAsync, and set initial state.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "create"
+    },
+    {
+      "description": "Continue StudentChat.razor implementation: In OnAfterRenderAsync (firstRender), initialize SignalR HubConnection with URL '/progresshub' and WithAutomaticReconnect(). Register ReceiveMessage handler to add new messages to the list and trigger StateHasChanged. Register ReceiveProgress handler to update session.CurrentProgress and session.IsCompleted. Start the connection and invoke JoinStudentChannel with SessionId. Handle reconnection to restore state. Create the page layout: outer container with min-h-screen and flex column. Header section with glow-container showing: group name, goal description, and ProgressIndicator component. If group has WelcomeMessage and messages list is empty, show the welcome message in a special AI message bubble. Main chat area with ChatMessageList component. Fixed bottom area with ChatInput component, passing isSending as IsLoading and session.IsCompleted as IsDisabled.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add message sending logic to StudentChat.razor: Create HandleSendMessage async method that takes string content. Set isSending=true. Wrap in try-catch: call ChatService.SendMessageAsync(SessionId, content), add the returned AI message to local messages list. The student message should be added optimistically before the API call (create a new ChatMessage with IsFromStudent=true, Content=content, Timestamp=DateTime.UtcNow). On success, the SignalR handler will update the message with proper IDs and flags. On error, show error message in a toast or inline error. In finally block, set isSending=false. Handle InvalidOperationException (goal completed) by showing completion message and disabling input. Handle any exception by displaying the generic error message from PRD: 'Sorry, I'm having trouble responding right now. Please try again in a moment.'",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add goal completion handling to StudentChat.razor: In the ReceiveProgress SignalR handler, when isCompleted becomes true, show a completion message. Add a private field 'showCompletionBanner' (bool). When session.IsCompleted is true, render a completion banner above the chat input area with gradient background, checkmark icon, and text: 'Congratulations! You have completed your goal!' The banner should use the glow-container styling with a green/teal theme. The ChatInput component receives IsDisabled=true when completed, which will show 'Goal completed! Chat is now closed.' Ensure the completion state persists on page refresh by checking session.IsCompleted during initial load.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Implement DisposeAsync in StudentChat.razor: Cancel the disposalTokenSource, dispose it, and if hubConnection is not null, invoke 'LeaveChannels' and call DisposeAsync on the hubConnection. Wrap in try-catch to handle cleanup errors gracefully, logging warnings for any exceptions during disposal.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/StudentChat.razor",
+      "action": "modify"
+    },
+    {
+      "description": "Add CSS styles to app.src.css for the student chat interface. Add: .student-chat-container (flex layout for chat page), .chat-header (sticky header with progress indicator), .chat-welcome-message (styled welcome message from AI, using tertiary color theme), .completion-banner (gradient background with glow effect, teal color scheme), .chat-input-container (fixed bottom container with backdrop blur). Add responsive styles for mobile devices. Ensure the chat message list has proper scroll behavior and the input stays fixed at bottom.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+      "action": "modify"
+    },
+    {
+      "description": "Add JavaScript interop function for auto-scrolling chat. In a new file or extend device.js, add a function 'scrollToBottom' that takes an element reference and scrolls it to the bottom smoothly. Export it as window.chatInterop = { scrollToBottom: function(element) { if (element) element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' }); } }. This will be called from ChatMessageList.razor after messages update.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/chat.js",
+      "action": "create"
+    },
+    {
+      "description": "Update the App.razor or index.html to include the new chat.js script reference. Add a script tag after the device.js reference: <script src=\"js/chat.js\"></script>. This ensures the chat interop functions are available for the student chat page.",
+      "file": "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor",
+      "action": "modify"
+    }
+  ],
+  "considerations": [
+    "SignalR connection must be established in OnAfterRenderAsync, not OnInitializedAsync, because JS interop is not available during prerendering in Blazor Server",
+    "The [AllowAnonymous] attribute is required since students are not authenticated - they access the chat via session ID only",
+    "Device ID verification could be added for security (compare stored deviceId with session.DeviceId) but is not strictly required per PRD - sessionId in URL is sufficient for prototype",
+    "Messages should be displayed chronologically (oldest first) to match natural chat flow, with newest messages at bottom",
+    "The SignalR ReceiveMessage handler may receive the student's own message back - need to avoid duplicates by checking message ID or using optimistic UI pattern",
+    "Goal completion (IsCompleted) must immediately disable the chat input - check both the session.IsCompleted state and respond to the ReceiveProgress SignalR event",
+    "Off-topic warning indicator (REQ-CHAT-008) is already handled by MessageDisplay.razor component, which is visible to students",
+    "Progress-contributing messages (green border per REQ-CHAT-007) are handled by the message-progress CSS class in MessageDisplay",
+    "WelcomeMessage comes from group.WelcomeMessage and should be shown as the first AI message when chat is empty",
+    "Auto-scroll to bottom should happen after messages update but use smooth scrolling for better UX",
+    "The ChatService.SendMessageAsync already handles storing messages, updating progress, and creating alerts - just need to handle the returned message and update local state",
+    "Error handling must distinguish between InvalidOperationException (goal completed - should show completion state) and other exceptions (show retry message)",
+    "The session data needs to be loaded with Group navigation property to access GoalType, TotalSteps, and WelcomeMessage",
+    "Consider mobile responsiveness - chat interface should work well on phones since students often use QR codes on mobile devices"
+  ],
+  "filesToRead": [
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Student/JoinGroup.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Pages/Teacher/GroupDashboard.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Shared/MessageDisplay.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/Teacher/StudentRow.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IChatService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/ChatService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Hubs/ProgressHub.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Services/IHubNotificationService.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/StudentSession.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/ChatMessage.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Group.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Models/Enums.cs",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/css/app.src.css",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/wwwroot/js/device.js",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/_Imports.razor",
+    "/Users/mu/Coding/scio--progress-path/ProgressPath/Components/App.razor"
+  ]
+}
